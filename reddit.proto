@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package reddit_scheduler;
+
+
+
+service RedditScheduler {
+  rpc ListPosts(ListPostsRequest) returns (ListPostsReply) {}
+}
+
+message ListPostsRequest {
+
+}
+
+message ListPostsReply {
+  repeated string posts = 1;
+}
