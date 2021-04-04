@@ -17,11 +17,19 @@ class Servicer(reddit_grpc.RedditSchedulerServicer):
         posts = ["Hello", "There", "How"]
         return rpc.ListPostsReply(posts=posts)
 
+    def SchedulePost(self, request, context):
+        self.poster.schedule_post(request)
+
+    def link_poster(self, poster):
+        self.poster = poster
+        return self
+
 
 class Poster:
     def __init__(self, config_path):
         self.config = configparser.ConfigParser()
         self.config.read(config_path)
+        self.queue = []
 
         cfg = self.config["RedditAPI"]
         self.reddit = praw.Reddit(
@@ -31,6 +39,9 @@ class Poster:
             username=cfg["Username"],
             user_agent=f"desktop:{cfg['ClientId']}:v0.0.1  (by u/{cfg['Username']})",
         )
+
+    def schedule_post(self, post):
+        self.queue.append(post)
 
     def start(self):
         post = rpc.Post(
@@ -43,15 +54,17 @@ class Poster:
 
 
 def post_to_reddit(reddit, post):
-    print('Posting to subreddit')
+    print("Posting to subreddit")
     subreddit = reddit.subreddit(post.subreddit)
     subreddit.submit(title=post.title, selftext=post.body, url=None)
-    print('Submitted')
+    print("Submitted")
 
 
-def serve():
+def serve(poster):
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    reddit_grpc.add_RedditSchedulerServicer_to_server(Servicer(), server)
+    reddit_grpc.add_RedditSchedulerServicer_to_server(
+        Servicer().link_poster(poster), server
+    )
     server.add_insecure_port("[::]:50051")
     print("Starting server...")
     server.start()

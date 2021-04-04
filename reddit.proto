@@ -4,6 +4,8 @@ package reddit_scheduler;
 
 service RedditScheduler {
   rpc ListPosts(ListPostsRequest) returns (ListPostsReply) {}
+
+  rpc SchedulePost(Post) returns (SchedulePostReply) {}
 }
 
 message ListPostsRequest {
@@ -12,6 +14,10 @@ message ListPostsRequest {
 
 message ListPostsReply {
   repeated string posts = 1;
+}
+
+message SchedulePostReply {
+
 }
 
 message Post {
