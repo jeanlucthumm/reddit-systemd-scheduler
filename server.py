@@ -42,6 +42,11 @@ TEST_POST = rpc.Post(
 )
 
 
+def validate_post(post):
+    # In proto3 unset values are equal to default values
+    return post.title != "" and post.subreddit != "" and post.scheduled_time != 0
+
+
 class Database:
     def __init__(self, db_path):
         try:
@@ -58,6 +63,9 @@ class Database:
     def add_post(self, post):
         try:
             self.lock.acquire()
+            if not validate_post(post):
+                return "invalid post"
+
             cur = self.conn.cursor()
             cur.execute(
                 QUERY_INSERT_POST,
@@ -84,10 +92,20 @@ class Servicer(reddit_grpc.RedditSchedulerServicer):
         return rpc.ListPostsReply(posts=posts)
 
     def SchedulePost(self, request, context):
-        self.poster.schedule_post(request)
+        try:
+            msg = self.db.add_post(request)
+            msg = msg if not None else ""
+            return rpc.SchedulePostReply(error_msg=msg)
+        except:
+            # TODO error logging
+            return rpc.SchedulePostReply(error_msg="internal error. check logs")
 
     def link_poster(self, poster):
         self.poster = poster
+        return self
+
+    def link_database(self, db):
+        self.db = db
         return self
 
 

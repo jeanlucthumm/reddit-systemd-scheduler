@@ -17,7 +17,7 @@ message ListPostsReply {
 }
 
 message SchedulePostReply {
-
+  string error_msg = 1;
 }
 
 message Post {
