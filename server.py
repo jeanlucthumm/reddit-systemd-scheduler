@@ -1,14 +1,51 @@
 from concurrent import futures
+import configparser
+import logging
+import time
+import sqlite3
+import os
 
 import grpc
-import configparser
 import praw
-import time
+from systemd import journal
 
 import reddit_pb2 as rpc
 import reddit_pb2_grpc as reddit_grpc
 
 # <platform>:<app ID>:<version string> (by u/<Reddit username>)
+
+# Set up logging with systemd
+log = logging.getLogger()
+log.addHandler(journal.JournalHandler())
+
+QUERY_CREATE_TABLE = """
+CREATE TABLE IF NOT EXISTS Queue (
+    id INTEGER PRIMARY KEY,
+    title TEXT NOT NULL,
+    subreddit TEXT NOT NULL,
+    body TEXT,
+    scheduled_time INTEGER NOT NULL
+);
+"""
+
+class Database:
+    def __init__(self, db_path):
+        try:
+            self.conn = sqlite3.connect(db_path)
+        except Exception as e:
+            raise Exception(f"Failed to initialize db at {db_path}") from e
+        try:
+            cur = self.conn.cursor()
+            cur.execute(QUERY_CREATE_TABLE)
+        except Exception as e:
+            raise Exception("Failed to create database table") from e
+
+
+def post_to_reddit(reddit, post):
+    print("Posting to subreddit")
+    subreddit = reddit.subreddit(post.subreddit)
+    subreddit.submit(title=post.title, selftext=post.body, url=None)
+    print("Submitted")
 
 
 class Servicer(reddit_grpc.RedditSchedulerServicer):
@@ -53,13 +90,6 @@ class Poster:
         post_to_reddit(self.reddit, post)
 
 
-def post_to_reddit(reddit, post):
-    print("Posting to subreddit")
-    subreddit = reddit.subreddit(post.subreddit)
-    subreddit.submit(title=post.title, selftext=post.body, url=None)
-    print("Submitted")
-
-
 def serve(poster):
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     reddit_grpc.add_RedditSchedulerServicer_to_server(
@@ -72,5 +102,4 @@ def serve(poster):
 
 
 if __name__ == "__main__":
-    s = Poster("config.ini")
-    s.start()
+    db = Database(os.environ["DBPATH"])

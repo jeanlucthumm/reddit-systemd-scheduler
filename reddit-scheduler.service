@@ -1,0 +1,6 @@
+[Unit]
+Description=Reddit post scheduler
+
+[Service]
+ExecStart=/usr/bin/python3 /home/jeanluc/Code/reddit-scheduler/test.py
+Environment=PYTHONBUFFERED=1
