@@ -1,4 +1,5 @@
 from concurrent import futures
+from threading import Lock
 import configparser
 import logging
 import time
@@ -28,6 +29,19 @@ CREATE TABLE IF NOT EXISTS Queue (
 );
 """
 
+QUERY_INSERT_POST = """
+INSERT INTO Queue (title, subreddit, body, scheduled_time)
+VALUES (?, ?, ?, ?);
+"""
+
+TEST_POST = rpc.Post(
+    title="Hello there",
+    subreddit="test",
+    body="sample body disregard",
+    scheduled_time=int(time.time()),
+)
+
+
 class Database:
     def __init__(self, db_path):
         try:
@@ -39,6 +53,21 @@ class Database:
             cur.execute(QUERY_CREATE_TABLE)
         except Exception as e:
             raise Exception("Failed to create database table") from e
+        self.lock = Lock()
+
+    def add_post(self, post):
+        try:
+            self.lock.acquire()
+            cur = self.conn.cursor()
+            cur.execute(
+                QUERY_INSERT_POST,
+                (post.title, post.subreddit, post.body, post.scheduled_time),
+            )
+            self.conn.commit()
+        except sqlite3.Error as e:
+            raise Exception(f"Failed to insert post into database:\n{post}") from e
+        finally:
+            self.lock.release()
 
 
 def post_to_reddit(reddit, post):
@@ -81,13 +110,7 @@ class Poster:
         self.queue.append(post)
 
     def start(self):
-        post = rpc.Post(
-            title="Hello there",
-            subreddit="test",
-            body="sample body disregard",
-            scheduled_time=int(time.time()),
-        )
-        post_to_reddit(self.reddit, post)
+        post_to_reddit(self.reddit, TEST_POST)
 
 
 def serve(poster):
@@ -103,3 +126,4 @@ def serve(poster):
 
 if __name__ == "__main__":
     db = Database(os.environ["DBPATH"])
+    db.add_post(TEST_POST)
