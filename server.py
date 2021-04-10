@@ -1,10 +1,11 @@
 from concurrent import futures
-from threading import Lock
 import configparser
 import logging
-import time
-import sqlite3
 import os
+import sqlite3
+from threading import Lock
+import time
+import sys
 
 import grpc
 import praw
@@ -13,11 +14,14 @@ from systemd import journal
 import reddit_pb2 as rpc
 import reddit_pb2_grpc as reddit_grpc
 
-# <platform>:<app ID>:<version string> (by u/<Reddit username>)
-
-# Set up logging with systemd
+# Logging setup
+LOG_LEVEL = logging.DEBUG
 log = logging.getLogger()
 log.addHandler(journal.JournalHandler())
+stdout_handler = logging.StreamHandler(sys.stdout)
+stdout_handler.setLevel(LOG_LEVEL)
+log.addHandler(stdout_handler)
+log.setLevel(LOG_LEVEL)
 
 QUERY_CREATE_TABLE = """
 CREATE TABLE IF NOT EXISTS Queue (
@@ -87,19 +91,19 @@ def post_to_reddit(reddit, post):
 
 class Servicer(reddit_grpc.RedditSchedulerServicer):
     def ListPosts(self, request, context):
-        print("Got list posts RPC")
+        log.debug("Got ListPosts RPC")
         posts = ["Hello", "There", "How"]
         return rpc.ListPostsReply(posts=posts)
 
     def SchedulePost(self, request, context):
-        print("Got schedule post RPC")
+        log.debug("Got SchedulePost RPC")
         try:
             msg = self.db.add_post(request)
             msg = msg if not None else ""
             return rpc.SchedulePostReply(error_msg=msg)
         except Exception as e:
-            # TODO error logging
-            return rpc.SchedulePostReply(error_msg=str(e))
+            log.exception("Error handling SchedulePost RPC with request:\n%s", request)
+            return rpc.SchedulePostReply(error_msg="internal server error. check logs")
 
     def link_poster(self, poster):
         self.poster = poster
@@ -138,7 +142,8 @@ if __name__ == "__main__":
     reddit_grpc.add_RedditSchedulerServicer_to_server(
         Servicer().link_database(db), server
     )
-    server.add_insecure_port("[::]:50051")
-    print("Starting server...")
+    addr = "[::]:50051"
+    server.add_insecure_port(addr)
+    log.info("Starting server on %s", addr)
     server.start()
     server.wait_for_termination()
