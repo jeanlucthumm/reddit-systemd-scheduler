@@ -92,13 +92,14 @@ class Servicer(reddit_grpc.RedditSchedulerServicer):
         return rpc.ListPostsReply(posts=posts)
 
     def SchedulePost(self, request, context):
+        print("Got schedule post RPC")
         try:
             msg = self.db.add_post(request)
             msg = msg if not None else ""
             return rpc.SchedulePostReply(error_msg=msg)
-        except:
+        except Exception as e:
             # TODO error logging
-            return rpc.SchedulePostReply(error_msg="internal error. check logs")
+            return rpc.SchedulePostReply(error_msg=str(e))
 
     def link_poster(self, poster):
         self.poster = poster
@@ -131,17 +132,13 @@ class Poster:
         post_to_reddit(self.reddit, TEST_POST)
 
 
-def serve(poster):
+if __name__ == "__main__":
+    db = Database(os.environ["DBPATH"])
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     reddit_grpc.add_RedditSchedulerServicer_to_server(
-        Servicer().link_poster(poster), server
+        Servicer().link_database(db), server
     )
     server.add_insecure_port("[::]:50051")
     print("Starting server...")
     server.start()
     server.wait_for_termination()
-
-
-if __name__ == "__main__":
-    db = Database(os.environ["DBPATH"])
-    db.add_post(TEST_POST)
