@@ -3,6 +3,7 @@ import click
 from dateutil import parser
 from datetime import datetime
 import time
+import json
 
 import reddit_pb2 as rpc
 import reddit_pb2_grpc as reddit_grpc
@@ -17,17 +18,15 @@ TEST_POST = rpc.Post(
     scheduled_time=int(time.time()),
 )
 
-ERR_MISSING_SERVICE=(
-"Failed to connect to service. Are you sure it's running and on the expected port?\n\n"
-
-"You can turn it on with\n"
-"$ systemctl --user start reddit-scheduler\n\n"
-
-"Or check for status with\n"
-"$ systemctl --user status reddit-scheduler\n\n"
-
-"Both service and client should use the port from the config.ini file unless changed "
-"via client flag.")
+ERR_MISSING_SERVICE = (
+    "Failed to connect to service. Are you sure it's running and on the expected port?\n\n"
+    "You can turn it on with\n"
+    "$ systemctl --user start reddit-scheduler\n\n"
+    "Or check for status with\n"
+    "$ systemctl --user status reddit-scheduler\n\n"
+    "Both service and client should use the port from the config.ini file unless changed "
+    "via client flag."
+)
 
 
 def make_post_from_cli():
@@ -65,9 +64,39 @@ def make_post_from_cli():
     )
 
 
-def make_post_from_file():
-    # TODO
-    pass
+def make_post_from_file(file):
+    try:
+        file = json.load(file)
+    except json.JSONDecodeError as e:
+        print("Failed to read json file. Probably a syntax error:\n")
+        print(e)
+        return None
+    for key in ["title", "subreddit", "body", "scheduled_time"]:
+        if key not in file:
+            print("JSON missing key:", key)
+            print("See `reddit post --help` for file format")
+            return None
+    try:
+        time = parser.parse(file["scheduled_time"], dayfirst=True)
+    except ValueError:
+        print("Invalid scheduled time in JSON file:", file["scheduled_time"])
+        return None
+
+    now = datetime.now()
+    if time < now:
+        print("The scheduled time from the JSON file is in the past:")
+        print("JSON:", time.strftime(TIME_FMT))
+        print("Current: ", now.strftime(TIME_FMT))
+        print("Do you still want to continue? (y/n)")
+        if input(PROMPT) != "y":
+            return None
+
+    return rpc.Post(
+        title=file["title"],
+        subreddit=file["subreddit"],
+        body=file["body"],
+        scheduled_time=int(time.timestamp()),
+    )
 
 
 def old_main():
@@ -102,13 +131,17 @@ def post(ctx, file):
 
     Empty string for 'body' means no body.
     """
-    rpc_post = make_post_from_cli() if file is None else make_post_from_file()
+    rpc_post = make_post_from_cli() if file is None else make_post_from_file(file)
+    if rpc_post is None:
+        return
     try:
         with grpc.insecure_channel("localhost:50051") as channel:
             stub = reddit_grpc.RedditSchedulerStub(channel)
             reply = stub.SchedulePost(rpc_post)
             if reply.error_msg:
-                print("Failed to schedule post. Server returned error:", reply.error_msg)
+                print(
+                    "Failed to schedule post. Server returned error:", reply.error_msg
+                )
             else:
                 print("Scheduled.")
     except grpc.RpcError as e:
