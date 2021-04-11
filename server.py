@@ -1,6 +1,7 @@
 from concurrent import futures
 import configparser
 import logging
+import datetime
 import os
 import sqlite3
 import threading
@@ -27,19 +28,28 @@ stdout_handler.setLevel(LOG_LEVEL)
 log.addHandler(stdout_handler)
 log.setLevel(LOG_LEVEL)
 
+# TODO how do you deal with schema updates?
+# Existing table cols will not be updated due to IF NOT EXISTS
 QUERY_CREATE_TABLE = """
 CREATE TABLE IF NOT EXISTS Queue (
     id INTEGER PRIMARY KEY,
     title TEXT NOT NULL,
     subreddit TEXT NOT NULL,
     body TEXT,
-    scheduled_time INTEGER NOT NULL
+    scheduled_time INTEGER NOT NULL,
+    posted INTEGER NOT NULL
 );
 """
 
 QUERY_INSERT_POST = """
-INSERT INTO Queue (title, subreddit, body, scheduled_time)
-VALUES (?, ?, ?, ?);
+INSERT INTO Queue (title, subreddit, body, scheduled_time, posted)
+VALUES (?, ?, ?, ?, 0);
+"""
+
+QUERY_ELIGIBLE = """
+SELECT * FROM Queue
+WHERE scheduled_time < strftime('%s','now')
+AND posted == 0;
 """
 
 TEST_POST = rpc.Post(
@@ -61,11 +71,26 @@ class DbCommand:
         self.obj = obj
         self.oneshot = Queue(maxsize=1)
 
-    def reply_to_sender(self, reply):
-        self.oneshot.put_nowait(reply)
+    def reply_err(self, err):
+        self.oneshot.put_nowait(DbReply(err, True))
+
+    def reply_ok(self, obj=None):
+        self.oneshot.put_nowait(DbReply(obj, False))
 
     def __str__(self):
         return f"DbCommand {self.command}: obj: {self.obj}"
+
+
+class DbReply:
+    def __init__(self, obj, is_err=False):
+        self.is_err = is_err
+        self.obj = obj
+
+    def __str__(self):
+        if self.is_err:
+            return f"Err({self.obj})"
+        else:
+            return f"Ok({self.obj})"
 
 
 class Database:
@@ -87,6 +112,7 @@ class Database:
         # Initialize
         try:
             self.conn = sqlite3.connect(self.path)
+            self.conn.row_factory = sqlite3.Row
         except Exception as e:
             raise Exception(f"Failed to initialize db at {self.path}") from e
         try:
@@ -107,24 +133,44 @@ class Database:
             elif command == "post":
                 try:
                     result = self.add_post(entry.obj)
-                    entry.reply_to_sender(result)
+                    entry.reply_ok(result)
                 except:
-                    log.exception("Failed handling %s command", command)
-                    entry.reply_to_sender("internal error. See service logs")
+                    log.exception("Failed to insert post into database:\n%s", entry.obj)
+                    entry.reply_err("internal error. See service logs")
+            elif command == "eligible":
+                try:
+                    result = self.get_eligible_posts()
+                    entry.reply_ok(result)
+                except:
+                    log.exception("Failed to get eligible posts")
+                    entry.reply_err("internal error. See service logs")
 
     def add_post(self, post):
-        try:
-            if not validate_post(post):
-                return "invalid post"
+        if not validate_post(post):
+            raise ValueError("invalid post")
 
-            cur = self.conn.cursor()
-            cur.execute(
-                QUERY_INSERT_POST,
-                (post.title, post.subreddit, post.body, post.scheduled_time),
+        cur = self.conn.cursor()
+        cur.execute(
+            QUERY_INSERT_POST,
+            (post.title, post.subreddit, post.body, post.scheduled_time),
+        )
+        self.conn.commit()
+
+    def get_eligible_posts(self):
+        posts = []
+        for row in self.conn.execute(QUERY_ELIGIBLE):
+            posts.append(
+                (
+                    row["id"],
+                    rpc.Post(
+                        title=row["title"],
+                        subreddit=row["subreddit"],
+                        body=row["body"] if not None else "",
+                        scheduled_time=row["scheduled_time"],
+                    ),
+                )
             )
-            self.conn.commit()
-        except sqlite3.Error as e:
-            raise Exception(f"Failed to insert post into database:\n{post}") from e
+        return posts
 
 
 def post_to_reddit(reddit, post):
@@ -145,8 +191,8 @@ class Servicer(reddit_grpc.RedditSchedulerServicer):
         try:
             command = DbCommand("post", request)
             self.db.queue_command(command)
-            msg = command.oneshot.get(timeout=LOCK_TIMEOUT)
-            msg = msg if not None else ""
+            db_reply = command.oneshot.get(timeout=LOCK_TIMEOUT)
+            msg = db_reply.obj if db_reply.is_err else ""
             return rpc.SchedulePostReply(error_msg=msg)
         except queue.Empty:
             log.exception(
@@ -189,7 +235,7 @@ class Poster:
 
 
 def database_thread(db):
-    log.debug('Starting database with path %s', db.path)
+    log.debug("Starting database with path %s", db.path)
     db.start()
 
 
@@ -204,7 +250,14 @@ if __name__ == "__main__":
 
     addr = "[::]:50051"
     server.add_insecure_port(addr)
-    log.info('Starting rpc server on %s', addr)
+    log.info("Starting rpc server on %s", addr)
+
+    # DEBUG
+    print("Now:", datetime.datetime.now().timestamp())
+    command = DbCommand("eligible", None)
+    db.queue_command(command)
+    print(command.oneshot.get())
+
     server.start()
     server.wait_for_termination()
-    db.queue_command(DbCommand(command='quit', obj=None))
+    db.queue_command(DbCommand(command="quit", obj=None))
