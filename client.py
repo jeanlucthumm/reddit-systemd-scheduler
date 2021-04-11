@@ -33,39 +33,38 @@ flag_config = {}
 
 
 def make_post_from_cli():
-    return TEST_POST
-    # print("Title:")
-    # title = input(PROMPT).strip()
-    # print("Subreddit:")
-    # subreddit = input(PROMPT + "r/")
-    # print("Body (optional):")
-    # body = input(PROMPT)
-    # while True:
-    #     print("Post time:")
-    #     time_input = input(PROMPT)
-    #     try:
-    #         time = parser.parse(time_input, dayfirst=True)
-    #     except ValueError:
-    #         print("Could not parse time:", time_input)
-    #         return None
+    print("Title:")
+    title = input(PROMPT).strip()
+    print("Subreddit:")
+    subreddit = input(PROMPT + "r/")
+    print("Body (optional):")
+    body = input(PROMPT)
+    while True:
+        print("Post time:")
+        time_input = input(PROMPT)
+        try:
+            time = parser.parse(time_input, dayfirst=True)
+        except ValueError:
+            print("Could not parse time:", time_input)
+            return None
 
-    #     now = datetime.now()
-    #     if time > now:
-    #         break
+        now = datetime.now()
+        if time > now:
+            break
 
-    #     print("The time you entered is in the past:")
-    #     print("Entered:", time.strftime(TIME_FMT))
-    #     print("Current: ", now.strftime(TIME_FMT))
-    #     print("Would you like to enter a new time? (y/n)")
-    #     if input(PROMPT) != "y":
-    #         return None
+        print("The time you entered is in the past:")
+        print("Entered:", time.strftime(TIME_FMT))
+        print("Current: ", now.strftime(TIME_FMT))
+        print("Would you like to enter a new time? (y/n)")
+        if input(PROMPT) != "y":
+            return None
 
-    # return rpc.Post(
-    #     title=title,
-    #     subreddit=subreddit,
-    #     body=body,
-    #     scheduled_time=int(time.timestamp()),
-    # )
+    return rpc.Post(
+        title=title,
+        subreddit=subreddit,
+        body=body,
+        scheduled_time=int(time.timestamp()),
+    )
 
 
 def make_post_from_file():
