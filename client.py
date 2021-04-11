@@ -29,8 +29,6 @@ ERR_MISSING_SERVICE=(
 "Both service and client should use the port from the config.ini file unless changed "
 "via client flag.")
 
-flag_config = {}
-
 
 def make_post_from_cli():
     print("Title:")
