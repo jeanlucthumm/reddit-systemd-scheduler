@@ -100,8 +100,9 @@ class Database:
             entry = self.queue.get()
             log.debug("Database handling command: %s", entry)
             command = entry.command
-            if command == 'quit':
-                log.debug('Stopping database')
+            if command == "quit":
+                log.debug("Stopping database")
+                self.conn.close()
                 break
             elif command == "post":
                 try:
