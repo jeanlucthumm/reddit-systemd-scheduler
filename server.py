@@ -203,6 +203,7 @@ if __name__ == "__main__":
 
     addr = "[::]:50051"
     server.add_insecure_port(addr)
-    log.info("Starting rpc server on %s", addr)
+    log.info('Starting rpc server on %s', addr)
     server.start()
     server.wait_for_termination()
+    db.queue_command(DbCommand(command='quit', obj=None))
