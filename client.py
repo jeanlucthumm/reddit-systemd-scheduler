@@ -10,7 +10,7 @@ import reddit_pb2 as rpc
 import reddit_pb2_grpc as reddit_grpc
 
 PROMPT = "> "
-TIME_FMT = "%d/%m/%Y %I:%M %p"
+TIME_FMT = "%m/%d/%Y %I:%M %p"
 
 TEST_POST = rpc.Post(
     title="Hello there",
@@ -100,18 +100,23 @@ def make_post_from_file(file):
     )
 
 
-def print_post_list(posts):
+def print_post_list(posts, filter):
     rows = []
     headers = ["Id", "Scheduled Time", "Subreddit", "Title", "Posted"]
-    for post_entry in posts:
+    posts.sort(key=lambda entry: entry.post.scheduled_time, reverse=True)
+    for entry in posts:
+        if filter == "unposted" and entry.posted:
+            continue
+        if filter == "posted" and not entry.posted:
+            continue
         row = []
-        post = post_entry.post
+        post = entry.post
         pretty_time = datetime.utcfromtimestamp(post.scheduled_time).strftime(TIME_FMT)
-        row.append(post_entry.id)
+        row.append(entry.id)
         row.append(pretty_time)
         row.append(post.subreddit)
         row.append(post.title)
-        row.append(post_entry.posted)
+        row.append(entry.posted)
         rows.append(row)
     print(tabulate(rows, headers=headers))
 
@@ -166,7 +171,8 @@ def post(ctx, file):
 
 
 @click.command()
-def list():
+@click.option("-f", "--filter", type=click.Choice(["all", "unposted", "posted"]), default="all")
+def list(filter):
     """Lists scheduled and completed posts."""
     try:
         with grpc.insecure_channel("localhost:50051") as channel:
@@ -177,7 +183,7 @@ def list():
                     "Failed to schedule post. Server returned error:", reply.error_msg
                 )
                 return
-            print_post_list(reply.posts)
+            print_post_list(reply.posts, filter)
 
     except grpc.RpcError:
         print(ERR_MISSING_SERVICE)
