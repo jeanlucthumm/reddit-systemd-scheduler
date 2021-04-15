@@ -2,6 +2,7 @@ import grpc
 import click
 from dateutil import parser
 from datetime import datetime
+from tabulate import tabulate
 import time
 import json
 
@@ -99,6 +100,21 @@ def make_post_from_file(file):
     )
 
 
+def print_post_list(posts):
+    rows = []
+    headers = ["Id", "Scheduled Time", "Subreddit", "Title"]
+    for post_with_id in posts:
+        row = []
+        post = post_with_id.post
+        pretty_time = datetime.utcfromtimestamp(post.scheduled_time).strftime(TIME_FMT)
+        row.append(post_with_id.id)
+        row.append(pretty_time)
+        row.append(post.subreddit)
+        row.append(post.title)
+        rows.append(row)
+    print(tabulate(rows, headers=headers))
+
+
 def old_main():
     with grpc.insecure_channel("localhost:50051") as channel:
         stub = reddit_grpc.RedditSchedulerStub(channel)
@@ -144,7 +160,25 @@ def post(ctx, file):
                 )
             else:
                 print("Scheduled.")
-    except grpc.RpcError as e:
+    except grpc.RpcError:
+        print(ERR_MISSING_SERVICE)
+
+
+@click.command()
+def list():
+    """Lists scheduled and completed posts."""
+    try:
+        with grpc.insecure_channel("localhost:50051") as channel:
+            stub = reddit_grpc.RedditSchedulerStub(channel)
+            reply = stub.ListPosts(rpc.ListPostsRequest())
+            if reply.error_msg:
+                print(
+                    "Failed to schedule post. Server returned error:", reply.error_msg
+                )
+                return
+            print_post_list(reply.posts)
+
+    except grpc.RpcError:
         print(ERR_MISSING_SERVICE)
 
 
@@ -155,4 +189,5 @@ def main():
 
 if __name__ == "__main__":
     main.add_command(post)
+    main.add_command(list)
     main()
