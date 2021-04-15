@@ -13,7 +13,8 @@ message ListPostsRequest {
 }
 
 message ListPostsReply {
-  repeated string posts = 1;
+  repeated PostWithId posts = 1;
+  string error_msg = 2;
 }
 
 message SchedulePostReply {
@@ -25,4 +26,9 @@ message Post {
   string subreddit = 2;
   string body = 3;
   uint64 scheduled_time = 4;
+}
+
+message PostWithId {
+  int32 id = 1;
+  Post post = 2;
 }

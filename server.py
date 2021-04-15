@@ -52,6 +52,10 @@ WHERE scheduled_time < strftime('%s','now')
 AND posted == 0;
 """
 
+QUERY_ALL = """
+SELECT * FROM Queue;
+"""
+
 TEST_POST = rpc.Post(
     title="Hello there",
     subreddit="test",
@@ -63,6 +67,15 @@ TEST_POST = rpc.Post(
 def validate_post(post):
     # In proto3 unset values are equal to default values
     return post.title != "" and post.subreddit != "" and post.scheduled_time != 0
+
+
+def make_post_from_row(row):
+    return rpc.Post(
+        title=row["title"],
+        subreddit=row["subreddit"],
+        body=row["body"] if not None else "",
+        scheduled_time=row["scheduled_time"],
+    )
 
 
 class DbCommand:
@@ -139,10 +152,17 @@ class Database:
                     entry.reply_err("internal error. See service logs")
             elif command == "eligible":
                 try:
-                    result = self.get_eligible_posts()
+                    result = self.get_posts_from_query(QUERY_ELIGIBLE)
                     entry.reply_ok(result)
                 except:
                     log.exception("Failed to get eligible posts")
+                    entry.reply_err("internal error. See service logs")
+            elif command == "all":
+                try:
+                    result = self.get_posts_from_query(QUERY_ALL)
+                    entry.reply_ok(result)
+                except:
+                    log.exception("Failed to get all posts")
                     entry.reply_err("internal error. See service logs")
 
     def add_post(self, post):
@@ -156,20 +176,10 @@ class Database:
         )
         self.conn.commit()
 
-    def get_eligible_posts(self):
+    def get_posts_from_query(self, query):
         posts = []
-        for row in self.conn.execute(QUERY_ELIGIBLE):
-            posts.append(
-                (
-                    row["id"],
-                    rpc.Post(
-                        title=row["title"],
-                        subreddit=row["subreddit"],
-                        body=row["body"] if not None else "",
-                        scheduled_time=row["scheduled_time"],
-                    ),
-                )
-            )
+        for row in self.conn.execute(query):
+            posts.append(rpc.PostWithId(id=row["id"], post=make_post_from_row(row)))
         return posts
 
 
@@ -183,8 +193,20 @@ def post_to_reddit(reddit, post):
 class Servicer(reddit_grpc.RedditSchedulerServicer):
     def ListPosts(self, request, context):
         log.debug("Got ListPosts RPC")
-        posts = ["Hello", "There", "How"]
-        return rpc.ListPostsReply(posts=posts)
+        try:
+            command = DbCommand("all", None)
+            self.db.queue_command(command)
+            db_reply = command.oneshot.get(timeout=LOCK_TIMEOUT)
+            msg = db_reply.obj if db_reply.is_err else ""
+            return rpc.ListPostsReply(posts=db_reply.obj, error_msg=msg)
+        except queue.Empty:
+            log.exception(
+                "ListPosts RPC timed out waiting for database with request:\n%s",
+                request,
+            )
+        except:
+            log.exception("Error handling SchedulePost RPC with request:\n%s", request)
+            return rpc.ListPostsReply(error_msg="internal server error. check logs")
 
     def SchedulePost(self, request, context):
         log.debug("Got SchedulePost RPC")
@@ -199,7 +221,7 @@ class Servicer(reddit_grpc.RedditSchedulerServicer):
                 "SchedulePost RPC timed out waiting for database with request:\n%s",
                 request,
             )
-        except Exception as e:
+        except:
             log.exception("Error handling SchedulePost RPC with request:\n%s", request)
             return rpc.SchedulePostReply(error_msg="internal server error. check logs")
 
@@ -251,12 +273,6 @@ if __name__ == "__main__":
     addr = "[::]:50051"
     server.add_insecure_port(addr)
     log.info("Starting rpc server on %s", addr)
-
-    # DEBUG
-    print("Now:", datetime.datetime.now().timestamp())
-    command = DbCommand("eligible", None)
-    db.queue_command(command)
-    print(command.oneshot.get())
 
     server.start()
     server.wait_for_termination()
