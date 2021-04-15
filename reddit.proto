@@ -13,7 +13,7 @@ message ListPostsRequest {
 }
 
 message ListPostsReply {
-  repeated PostWithId posts = 1;
+  repeated PostDbEntry posts = 1;
   string error_msg = 2;
 }
 
@@ -28,7 +28,8 @@ message Post {
   uint64 scheduled_time = 4;
 }
 
-message PostWithId {
+message PostDbEntry {
   int32 id = 1;
-  Post post = 2;
+  bool posted = 2;
+  Post post = 3;
 }

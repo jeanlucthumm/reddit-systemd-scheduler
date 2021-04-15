@@ -102,15 +102,16 @@ def make_post_from_file(file):
 
 def print_post_list(posts):
     rows = []
-    headers = ["Id", "Scheduled Time", "Subreddit", "Title"]
-    for post_with_id in posts:
+    headers = ["Id", "Scheduled Time", "Subreddit", "Title", "Posted"]
+    for post_entry in posts:
         row = []
-        post = post_with_id.post
+        post = post_entry.post
         pretty_time = datetime.utcfromtimestamp(post.scheduled_time).strftime(TIME_FMT)
-        row.append(post_with_id.id)
+        row.append(post_entry.id)
         row.append(pretty_time)
         row.append(post.subreddit)
         row.append(post.title)
+        row.append(post_entry.posted)
         rows.append(row)
     print(tabulate(rows, headers=headers))
 

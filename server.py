@@ -179,7 +179,11 @@ class Database:
     def get_posts_from_query(self, query):
         posts = []
         for row in self.conn.execute(query):
-            posts.append(rpc.PostWithId(id=row["id"], post=make_post_from_row(row)))
+            posts.append(
+                rpc.PostDbEntry(
+                    id=row["id"], posted=row["posted"], post=make_post_from_row(row)
+                )
+            )
         return posts
 
 
