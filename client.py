@@ -258,7 +258,7 @@ def get_default_config_path():
 
 
 @click.group()
-@click.option("--config", default=get_default_config_path)
+@click.option("--config", type=str, default=get_default_config_path)
 @click.option("--port", type=int, default=None)
 @click.pass_context
 def main(ctx, config, port):
