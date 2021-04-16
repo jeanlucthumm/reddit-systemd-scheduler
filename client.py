@@ -1,12 +1,13 @@
-import grpc
+import configparser
+from datetime import datetime
+import os
+import time
+
 import click
 from dateutil import parser
-from datetime import datetime
+import grpc
 from tabulate import tabulate
-import time
-import os
-import configparser
-import json
+import yaml
 
 import reddit_pb2 as rpc
 import reddit_pb2_grpc as reddit_grpc
@@ -41,6 +42,13 @@ ERR_MISSING_CONFIG = (
     "Alternatively, you can specify it with the --port flag.\n\n"
     "Search path for the config file is as follows:\n"
 )
+
+ERR_INVALID_POST_FILE = (
+    "Parsing the YAML file for the post failed with the following error:\n\n"
+)
+
+ERR_SAMPLE_CONFIG = "Run `reddit post --sample` to output a sample YAML post file in the current directory"
+
 for path in CONFIG_SEARCH_PATHS:
     ERR_MISSING_CONFIG += f"  - {path}\n"
 
@@ -87,26 +95,25 @@ def make_post_from_cli():
 
 def make_post_from_file(file):
     try:
-        file = json.load(file)
-    except json.JSONDecodeError as e:
-        print("Failed to read json file. Probably a syntax error:\n")
-        print(e)
+        file = yaml.load(file, Loader=yaml.SafeLoader)
+    except yaml.YAMLError as e:
+        print(ERR_INVALID_POST_FILE, e)
         return None
     for key in ["title", "subreddit", "body", "scheduled_time"]:
         if key not in file:
-            print("JSON missing key:", key)
-            print("See `reddit post --help` for file format")
+            print("YAML missing key:", key)
+            print(ERR_SAMPLE_CONFIG)
             return None
     try:
         time = parser.parse(file["scheduled_time"], dayfirst=True)
     except ValueError:
-        print("Invalid scheduled time in JSON file:", file["scheduled_time"])
+        print("Invalid scheduled time in YAML file:", file["scheduled_time"])
         return None
 
     now = datetime.now()
     if time < now:
-        print("The scheduled time from the JSON file is in the past:")
-        print("JSON:", time.strftime(TIME_FMT))
+        print("The scheduled time from the YAML file is in the past:")
+        print("YAML:", time.strftime(TIME_FMT))
         print("Current: ", now.strftime(TIME_FMT))
         print("Do you still want to continue? (y/n)")
         if input(PROMPT) != "y":
