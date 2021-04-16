@@ -152,8 +152,8 @@ def old_main():
 
 @click.command()
 @click.option("--file", type=click.File())
-@click.pass_context
-def post(ctx, file):
+@click.pass_obj
+def post(config, file):
     """Schedule a reddit post.
     If FILENAME is not provided, start an interactive prompt.
     Otherwise, FILENAME is a json file containing
@@ -177,7 +177,7 @@ def post(ctx, file):
     if rpc_post is None:
         return
     try:
-        with grpc.insecure_channel("localhost:50051") as channel:
+        with grpc.insecure_channel(f"localhost:{config.port}") as channel:
             stub = reddit_grpc.RedditSchedulerStub(channel)
             reply = stub.SchedulePost(rpc_post)
             if reply.error_msg:
@@ -194,10 +194,11 @@ def post(ctx, file):
 @click.option(
     "-f", "--filter", type=click.Choice(["all", "unposted", "posted"]), default="all"
 )
-def list(filter):
+@click.pass_obj
+def list(config, filter):
     """Lists scheduled and completed posts."""
     try:
-        with grpc.insecure_channel("localhost:50051") as channel:
+        with grpc.insecure_channel(f"localhost:{config.port}") as channel:
             stub = reddit_grpc.RedditSchedulerStub(channel)
             reply = stub.ListPosts(rpc.ListPostsRequest())
             if reply.error_msg:
@@ -210,14 +211,15 @@ def list(filter):
 
 @click.command()
 @click.argument("post_id", type=int)
-def delete(post_id):
+@click.pass_obj
+def delete(config, post_id):
     """Delete a post.
     The POST_ID argument selects which post to delete. You can list ids with
     the `list` subcommand
     """
     click.confirm("Are you sure?", abort=True)
     try:
-        with grpc.insecure_channel("localhost:50051") as channel:
+        with grpc.insecure_channel(f"localhost:{config.port}") as channel:
             stub = reddit_grpc.RedditSchedulerStub(channel)
             reply = stub.EditPost(
                 rpc.EditPostRequest(operation=rpc.EditPostRequest.DELETE, id=post_id)
