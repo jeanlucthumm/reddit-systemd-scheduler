@@ -171,7 +171,9 @@ def post(ctx, file):
 
 
 @click.command()
-@click.option("-f", "--filter", type=click.Choice(["all", "unposted", "posted"]), default="all")
+@click.option(
+    "-f", "--filter", type=click.Choice(["all", "unposted", "posted"]), default="all"
+)
 def list(filter):
     """Lists scheduled and completed posts."""
     try:
@@ -179,12 +181,31 @@ def list(filter):
             stub = reddit_grpc.RedditSchedulerStub(channel)
             reply = stub.ListPosts(rpc.ListPostsRequest())
             if reply.error_msg:
-                print(
-                    "Failed to schedule post. Server returned error:", reply.error_msg
-                )
+                print("Failed to list posts. Server returned error:", reply.error_msg)
                 return
             print_post_list(reply.posts, filter)
+    except grpc.RpcError:
+        print(ERR_MISSING_SERVICE)
 
+
+@click.command()
+@click.argument("post_id", type=int)
+def delete(post_id):
+    """Delete a post.
+    The POST_ID argument selects which post to delete. You can list ids with
+    the `list` subcommand
+    """
+    click.confirm("Are you sure?", abort=True)
+    try:
+        with grpc.insecure_channel("localhost:50051") as channel:
+            stub = reddit_grpc.RedditSchedulerStub(channel)
+            reply = stub.EditPost(
+                rpc.EditPostRequest(operation=rpc.EditPostRequest.DELETE, id=post_id)
+            )
+            print("Deleted.")
+            if reply.error_msg:
+                print("Failed to delete post. Server returned error:", reply.error_msg)
+                return
     except grpc.RpcError:
         print(ERR_MISSING_SERVICE)
 
@@ -197,4 +218,5 @@ def main():
 if __name__ == "__main__":
     main.add_command(post)
     main.add_command(list)
+    main.add_command(delete)
     main()

@@ -192,7 +192,7 @@ class Database:
 
     def edit_post(self, request):
         if request.operation == rpc.EditPostRequest.Operation.DELETE:
-            self.conn.execute(QUERY_DELETE, (request.id))
+            self.conn.execute(QUERY_DELETE, (request.id,))
         else:
             raise ValueError(f"unknown edit operation: {request.operation}")
 
