@@ -47,7 +47,12 @@ ERR_INVALID_POST_FILE = (
     "Parsing the YAML file for the post failed with the following error:\n\n"
 )
 
+MSG_BODY_EDITOR = (
+    "Replace this with post body and save, or quit editor for empty body"
+)
+
 ERR_SAMPLE_CONFIG = "Run `reddit post --sample` to output a sample YAML post file in the current directory"
+
 
 for path in CONFIG_SEARCH_PATHS:
     ERR_MISSING_CONFIG += f"  - {path}\n"
@@ -63,8 +68,8 @@ def make_post_from_cli():
     title = input(PROMPT).strip()
     print("Subreddit:")
     subreddit = input(PROMPT + "r/")
-    print("Body (optional):")
-    body = input(PROMPT)
+    input(PROMPT + "Press any key to launch editor for post body...")
+    body = click.edit(MSG_BODY_EDITOR)
     while True:
         print("Post time:")
         time_input = input(PROMPT)
@@ -88,7 +93,7 @@ def make_post_from_cli():
     return rpc.Post(
         title=title,
         subreddit=subreddit,
-        body=body,
+        body=body if body is not None else "",
         scheduled_time=int(time.timestamp()),
     )
 
