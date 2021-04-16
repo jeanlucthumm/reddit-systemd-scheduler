@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS Queue (
 
 QUERY_INSERT_POST = """
 INSERT INTO Queue (title, subreddit, body, scheduled_time, posted)
-VALUES (?, ?, ?, ?, 0);
+VALUES (?, ?, ?, ?, ?);
 """
 
 QUERY_ELIGIBLE = """
@@ -177,22 +177,20 @@ class Database:
                     log.exception("Failed to get all posts")
                     entry.reply_err("internal error. See service logs")
 
-
     def add_post(self, post):
         if not validate_post(post):
             # TODO these should be string replies because it's an RPC usage error
             raise ValueError("invalid post")
-
-        cur = self.conn.cursor()
-        cur.execute(
+        self.conn.execute(
             QUERY_INSERT_POST,
-            (post.title, post.subreddit, post.body, post.scheduled_time),
+            (post.title, post.subreddit, post.body, post.scheduled_time, 0),
         )
         self.conn.commit()
 
     def edit_post(self, request):
         if request.operation == rpc.EditPostRequest.Operation.DELETE:
             self.conn.execute(QUERY_DELETE, (request.id,))
+            self.conn.commit()
         else:
             raise ValueError(f"unknown edit operation: {request.operation}")
 
