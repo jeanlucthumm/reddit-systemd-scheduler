@@ -47,9 +47,7 @@ ERR_INVALID_POST_FILE = (
     "Parsing the YAML file for the post failed with the following error:\n\n"
 )
 
-MSG_BODY_EDITOR = (
-    "Replace this with post body and save, or quit editor for empty body"
-)
+MSG_BODY_EDITOR = "Replace this with post body and save, or quit editor for empty body"
 
 ERR_SAMPLE_CONFIG = "Run `reddit post --sample` to output a sample YAML post file in the current directory"
 
@@ -153,6 +151,26 @@ def print_post_list(posts, filter):
     print(tabulate(rows, headers=headers))
 
 
+def print_post_info(all_posts, post_id):
+    entry = None
+    for p in all_posts:
+        if p.id == post_id:
+            entry = p
+    if entry is None:
+        print(f"No post with id {post_id}.")
+    post = entry.post
+    rows = [
+        ["Title", post.title],
+        ["Subreddit", post.subreddit],
+        [
+            "Scheduled time",
+            datetime.utcfromtimestamp(post.scheduled_time).strftime(TIME_FMT),
+        ],
+        ["Body", post.body],
+    ]
+    print(tabulate(rows))
+
+
 def old_main():
     with grpc.insecure_channel("localhost:50051") as channel:
         stub = reddit_grpc.RedditSchedulerStub(channel)
@@ -206,9 +224,13 @@ def post(config, file):
 @click.option(
     "-f", "--filter", type=click.Choice(["all", "unposted", "posted"]), default="all"
 )
+@click.option("-p", "--post_id", type=int)
 @click.pass_obj
-def list(config, filter):
-    """Lists scheduled and completed posts."""
+def list(config, filter, post_id):
+    """List information about post(s).
+    If -p option is given, lists detailed information about the post with that
+    ID. Otherwise, lists all posts filtered with the -f option.
+    """
     try:
         with grpc.insecure_channel(f"localhost:{config.port}") as channel:
             stub = reddit_grpc.RedditSchedulerStub(channel)
@@ -216,7 +238,10 @@ def list(config, filter):
             if reply.error_msg:
                 print("Failed to list posts. Server returned error:", reply.error_msg)
                 return
-            print_post_list(reply.posts, filter)
+            if post_id is None:
+                print_post_list(reply.posts, filter)
+            else:
+                print_post_info(reply.posts, post_id)
     except grpc.RpcError:
         print(ERR_MISSING_SERVICE)
 
