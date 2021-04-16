@@ -4,6 +4,8 @@ from dateutil import parser
 from datetime import datetime
 from tabulate import tabulate
 import time
+import os
+import configparser
 import json
 
 import reddit_pb2 as rpc
@@ -19,6 +21,11 @@ TEST_POST = rpc.Post(
     scheduled_time=int(time.time()),
 )
 
+CONFIG_SEARCH_PATHS = [
+    os.path.expandvars("$HOME/.config/reddit-scheduler/config.ini"),
+    "./config.ini",
+]
+
 ERR_MISSING_SERVICE = (
     "Failed to connect to service. Are you sure it's running and on the expected port?\n\n"
     "You can turn it on with\n"
@@ -28,6 +35,19 @@ ERR_MISSING_SERVICE = (
     "Both service and client should use the port from the config.ini file unless changed "
     "via client flag."
 )
+
+ERR_MISSING_CONFIG = (
+    "Could not find a config file to pull a port number from. "
+    "Alternatively, you can specify it with the --port flag.\n\n"
+    "Search path for the config file is as follows:\n"
+)
+for path in CONFIG_SEARCH_PATHS:
+    ERR_MISSING_CONFIG += f"  - {path}\n"
+
+
+class Config:
+    def __init__(self, port):
+        self.port = port
 
 
 def make_post_from_cli():
@@ -210,8 +230,37 @@ def delete(post_id):
         print(ERR_MISSING_SERVICE)
 
 
+@click.command()
+@click.pass_obj
+def debug(config):
+    print(config.port)
+
+
+def get_default_config_path():
+    for path in CONFIG_SEARCH_PATHS:
+        if os.path.exists(path):
+            return path
+    return None
+
+
 @click.group()
-def main():
+@click.option("--config", default=get_default_config_path)
+@click.option("--port", type=int, default=None)
+@click.pass_context
+def main(ctx, config, port):
+    if port is None:
+        if config is None:
+            print(ERR_MISSING_CONFIG)
+            ctx.abort()
+        parser = configparser.ConfigParser()
+        parser.read(config)
+        try:
+            port = parser["General"]["Port"]
+        except KeyError:
+            print("Could not find Port setting in", config)
+            print("Please add it or use the --port flag")
+            ctx.abort()
+    ctx.obj = Config(port=port)
     pass
 
 
@@ -219,4 +268,5 @@ if __name__ == "__main__":
     main.add_command(post)
     main.add_command(list)
     main.add_command(delete)
+    main.add_command(debug)
     main()
