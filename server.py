@@ -56,6 +56,11 @@ QUERY_ALL = """
 SELECT * FROM Queue;
 """
 
+QUERY_DELETE = """
+DELETE FROM Queue
+WHERE id == ?;
+"""
+
 TEST_POST = rpc.Post(
     title="Hello there",
     subreddit="test",
@@ -164,9 +169,18 @@ class Database:
                 except:
                     log.exception("Failed to get all posts")
                     entry.reply_err("internal error. See service logs")
+            elif command == "edit":
+                try:
+                    result = self.edit_post(entry.obj)
+                    entry.reply_ok(result)
+                except:
+                    log.exception("Failed to get all posts")
+                    entry.reply_err("internal error. See service logs")
+
 
     def add_post(self, post):
         if not validate_post(post):
+            # TODO these should be string replies because it's an RPC usage error
             raise ValueError("invalid post")
 
         cur = self.conn.cursor()
@@ -175,6 +189,12 @@ class Database:
             (post.title, post.subreddit, post.body, post.scheduled_time),
         )
         self.conn.commit()
+
+    def edit_post(self, request):
+        if request.operation == rpc.EditPostRequest.Operation.DELETE:
+            self.conn.execute(QUERY_DELETE, (request.id))
+        else:
+            raise ValueError(f"unknown edit operation: {request.operation}")
 
     def get_posts_from_query(self, query):
         posts = []
@@ -223,6 +243,24 @@ class Servicer(reddit_grpc.RedditSchedulerServicer):
         except queue.Empty:
             log.exception(
                 "SchedulePost RPC timed out waiting for database with request:\n%s",
+                request,
+            )
+        except:
+            log.exception("Error handling SchedulePost RPC with request:\n%s", request)
+            return rpc.SchedulePostReply(error_msg="internal server error. check logs")
+
+    def EditPost(self, request, context):
+        # TODO generalize this
+        log.debug("Got EditPost RPC")
+        try:
+            command = DbCommand("edit", request)
+            self.db.queue_command(command)
+            db_reply = command.oneshot.get(timeout=LOCK_TIMEOUT)
+            msg = db_reply.obj if db_reply.is_err else ""
+            return rpc.SchedulePostReply(error_msg=msg)
+        except queue.Empty:
+            log.exception(
+                "EditPost RPC timed out waiting for database with request:\n%s",
                 request,
             )
         except:

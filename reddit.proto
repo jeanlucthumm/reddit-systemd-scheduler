@@ -6,11 +6,11 @@ service RedditScheduler {
   rpc ListPosts(ListPostsRequest) returns (ListPostsReply) {}
 
   rpc SchedulePost(Post) returns (SchedulePostReply) {}
+
+  rpc EditPost(EditPostRequest) returns (EditPostReply) {}
 }
 
-message ListPostsRequest {
-
-}
+message ListPostsRequest {}
 
 message ListPostsReply {
   repeated PostDbEntry posts = 1;
@@ -32,4 +32,20 @@ message PostDbEntry {
   int32 id = 1;
   bool posted = 2;
   Post post = 3;
+}
+
+message EditPostRequest {
+  // TODO support more operations if users request.
+  // For now we assume that if you want to edit its easier to just
+  // delete and start over again
+  enum Operation {
+    DELETE = 0;
+  }
+  
+  Operation operation = 1;
+  int32 id = 2;
+}
+
+message EditPostReply {
+  string error_msg = 1;
 }
