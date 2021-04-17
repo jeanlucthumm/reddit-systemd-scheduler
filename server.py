@@ -1,7 +1,7 @@
 from concurrent import futures
 import configparser
 import logging
-import datetime
+import time
 import os
 import sqlite3
 import threading
@@ -61,6 +61,12 @@ DELETE FROM Queue
 WHERE id == ?;
 """
 
+QUERY_MARK_POSTED = """
+UPDATE Queue
+SET posted = 1
+WHERE id == ?;
+"""
+
 TEST_POST = rpc.Post(
     title="Hello there",
     subreddit="test",
@@ -94,6 +100,9 @@ class DbCommand:
 
     def reply_ok(self, obj=None):
         self.oneshot.put_nowait(DbReply(obj, False))
+
+    def wait_for_answer(self):
+        return self.oneshot.get(timeout=LOCK_TIMEOUT)
 
     def __str__(self):
         return f"DbCommand {self.command}: obj: {self.obj}"
@@ -176,6 +185,13 @@ class Database:
                 except:
                     log.exception("Failed to get all posts")
                     entry.reply_err("internal error. See service logs")
+            elif command == "mark_posted":
+                try:
+                    result = self.mark_posted(entry.obj)
+                    entry.reply_ok(result)
+                except:
+                    log.exception("Failed to get all posts")
+                    entry.reply_err("internal error. See service logs")
 
     def add_post(self, post):
         if not validate_post(post):
@@ -194,6 +210,10 @@ class Database:
         else:
             raise ValueError(f"unknown edit operation: {request.operation}")
 
+    def mark_posted(self, post_id):
+        self.conn.execute(QUERY_MARK_POSTED, (post_id,))
+        self.conn.commit()
+
     def get_posts_from_query(self, query):
         posts = []
         for row in self.conn.execute(query):
@@ -203,13 +223,6 @@ class Database:
                 )
             )
         return posts
-
-
-def post_to_reddit(reddit, post):
-    print("Posting to subreddit")
-    subreddit = reddit.subreddit(post.subreddit)
-    subreddit.submit(title=post.title, selftext=post.body, url=None)
-    print("Submitted")
 
 
 class Servicer(reddit_grpc.RedditSchedulerServicer):
@@ -274,11 +287,23 @@ class Servicer(reddit_grpc.RedditSchedulerServicer):
         return self
 
 
+def post_to_reddit(reddit, post):
+    print("Posting to subreddit")
+    subreddit = reddit.subreddit(post.subreddit)
+    subreddit.submit(title=post.title, selftext=post.body, url=None)
+    print("Submitted")
+
+
+def simulate_post(post):
+    log.debug("Would've posted: %s", post)
+
+
 class Poster:
-    def __init__(self, config_path):
+    def __init__(self, config_path, dry_run=True, step_interval=5):
         self.config = configparser.ConfigParser()
         self.config.read(config_path)
-        self.queue = []
+        self.dry_run = dry_run
+        self.step_interval = step_interval
 
         cfg = self.config["RedditAPI"]
         self.reddit = praw.Reddit(
@@ -289,21 +314,73 @@ class Poster:
             user_agent=f"desktop:{cfg['ClientId']}:v0.0.1  (by u/{cfg['Username']})",
         )
 
-    def schedule_post(self, post):
-        self.queue.append(post)
+    def step(self):
+        log.debug("Poster doing step")
+        # Get the eligible posts from the database
+        eligible = []
+        try:
+            command = DbCommand("eligible", None)
+            self.db.queue_command(command)
+            db_reply = command.wait_for_answer()
+            if db_reply.is_err:
+                raise ValueError(db_reply.obj)
+            eligible = db_reply.obj
+        except:
+            log.exception("Poster step errored on db command")
+        log.debug("Got %d eligible posts", len(eligible))
+
+        # Post everything to reddit
+        posted = []
+        for entry in eligible:
+            if self.dry_run:
+                simulate_post(entry.post)
+            else:
+                try:
+                    post_to_reddit(self.reddit, entry.post)
+                    posted.append(entry)
+                except:
+                    log.exception("Failed to post post with id %d", entry.id)
+
+        # Tell database which posts we posted
+        for entry in posted:
+            try:
+                command = DbCommand("mark_posted", entry.id)
+                self.db.queue_command(command)
+                db_reply = command.wait_for_answer()
+                if db_reply.is_err:
+                    raise ValueError(db_reply.obj)
+            except:
+                log.exception("Poster step errored on telling db about posted")
 
     def start(self):
-        post_to_reddit(self.reddit, TEST_POST)
+        # TODO figure out how to stop this
+        while True:
+            self.step()
+            time.sleep(self.step_interval)
+
+
+    def link_database(self, db):
+        self.db = db
+        return self
 
 
 def database_thread(db):
     log.debug("Starting database with path %s", db.path)
     db.start()
 
+def poster_thread(poster):
+    log.debug("Starting poster")
+    poster.start()
+
 
 if __name__ == "__main__":
     db = Database(os.environ["DBPATH"])
     threading.Thread(target=database_thread, args=(db,)).start()
+
+    # TODO look for config path
+    poster = Poster("./config.ini")
+    poster.link_database(db)
+    threading.Thread(target=poster_thread, args=(poster,)).start()
 
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     reddit_grpc.add_RedditSchedulerServicer_to_server(
