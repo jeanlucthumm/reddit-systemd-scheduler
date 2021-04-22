@@ -115,7 +115,7 @@ class DbCommand:
         return self.oneshot.get(timeout=LOCK_TIMEOUT)
 
     def __str__(self):
-        return f"DbCommand {self.command}: obj: {self.obj}"
+        return f"DbCommand ({self.command}, {self.obj})"
 
 
 class DbReply:
@@ -139,7 +139,7 @@ class Database:
         self.conn = None
 
     def queue_command(self, command):
-        log.debug("Database got command: %s", command)
+        log.debug("Database queued command: %s", command)
         try:
             self.queue.put(command, timeout=LOCK_TIMEOUT)
         except queue.Full:
