@@ -9,6 +9,7 @@ from queue import Queue
 import queue
 import time
 import sys
+from configparser import ConfigParser
 
 import grpc
 import praw
@@ -27,6 +28,15 @@ stdout_handler = logging.StreamHandler(sys.stdout)
 stdout_handler.setLevel(LOG_LEVEL)
 log.addHandler(stdout_handler)
 log.setLevel(LOG_LEVEL)
+
+CONFIG_SEARCH_PATHS = [
+    os.environ.get("CONFIG_PATH"),
+    os.path.expandvars("$HOME/.config/reddit-scheduler/config.ini"),
+]
+CONFIG_SEARCH_PATHS = [p for p in CONFIG_SEARCH_PATHS if p is not None]
+
+ERR_MISSING_CONFIG = "Could not find a config file. Search path is: "
+ERR_MISSING_CONFIG += ", ".join(CONFIG_SEARCH_PATHS)
 
 # TODO how do you deal with schema updates?
 # Existing table cols will not be updated due to IF NOT EXISTS
@@ -299,13 +309,11 @@ def simulate_post(post):
 
 
 class Poster:
-    def __init__(self, config_path, dry_run=True, step_interval=5):
-        self.config = configparser.ConfigParser()
-        self.config.read(config_path)
+    def __init__(self, reddit_config, dry_run=True, step_interval=5):
         self.dry_run = dry_run
         self.step_interval = step_interval
 
-        cfg = self.config["RedditAPI"]
+        cfg = reddit_config
         self.reddit = praw.Reddit(
             client_id=cfg["ClientId"],
             client_secret=cfg["ClientSecret"],
@@ -334,6 +342,7 @@ class Poster:
         for entry in eligible:
             if self.dry_run:
                 simulate_post(entry.post)
+                posted.append(entry)
             else:
                 try:
                     post_to_reddit(self.reddit, entry.post)
@@ -358,36 +367,70 @@ class Poster:
             self.step()
             time.sleep(self.step_interval)
 
-
     def link_database(self, db):
         self.db = db
         return self
 
 
-def database_thread(db):
+def database_thread(db: Database):
     log.debug("Starting database with path %s", db.path)
     db.start()
 
-def poster_thread(poster):
+
+def poster_thread(poster: Poster):
     log.debug("Starting poster")
     poster.start()
 
 
+def get_config():
+    for p in CONFIG_SEARCH_PATHS:
+        if os.path.exists(p):
+            parser = ConfigParser()
+            parser.read(p)
+            return parser
+    log.error(ERR_MISSING_CONFIG)
+    return None
+
+
+def is_valid_config(config: ConfigParser):
+    try:
+        general = config["General"]
+        general.getint("Port")
+        general.getint("PostInterval")
+        general.getboolean("DryRun")
+        return True
+    except ValueError as e:
+        log.error("Config files contains errors: %s", e)
+    except KeyError as e:
+        log.error("Config file missing section: %s", e)
+    return False
+
+
 if __name__ == "__main__":
+    config = get_config()
+    if config is None or not is_valid_config(config):
+        sys.exit(1)
+    general = config["General"]
+
+    # Start database
     db = Database(os.environ["DBPATH"])
     threading.Thread(target=database_thread, args=(db,)).start()
 
-    # TODO look for config path
-    poster = Poster("./config.ini")
+    # Start poster
+    poster = Poster(
+        config["RedditAPI"],
+        os.environ.get("DRY_RUN") or general.getboolean("DryRun"),
+        general.getint("PostInterval"),
+    )
     poster.link_database(db)
     threading.Thread(target=poster_thread, args=(poster,)).start()
 
+    # Start RPC server
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     reddit_grpc.add_RedditSchedulerServicer_to_server(
         Servicer().link_database(db), server
     )
-
-    addr = "[::]:50051"
+    addr = f"[::]:{general.getint('Port')}"
     server.add_insecure_port(addr)
     log.info("Starting rpc server on %s", addr)
 
