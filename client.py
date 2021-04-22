@@ -81,11 +81,16 @@ def make_post_from_cli():
         if time > now:
             break
 
-        print("The time you entered is in the past:")
+        print("The time you entered is in the past, so the service will post immediately:")
         print("Entered:", time.strftime(TIME_FMT))
         print("Current: ", now.strftime(TIME_FMT))
-        print("Would you like to enter a new time? (y/n)")
-        if input(PROMPT) != "y":
+        print("Do you want to continue (c), enter a new time (t), or exit (e)? (c/t/e)")
+        response = input(PROMPT)
+        if response == "c":
+            break
+        elif response == "t":
+            continue
+        else:
             return None
 
     return rpc.Post(
