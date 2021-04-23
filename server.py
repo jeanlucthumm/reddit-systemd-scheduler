@@ -1,3 +1,12 @@
+""" Defines the reddit-scheduler service.
+
+Consists of 3 classes running on separate threads:
+- Servicer: responds to client RPC calls
+- Poster: periodically scans the database for posts ready to be posted
+- Database: wrapper around the database
+
+The Servicer and the Poster both enqueue commands in the Database.
+"""
 from concurrent import futures
 from configparser import ConfigParser
 import logging
