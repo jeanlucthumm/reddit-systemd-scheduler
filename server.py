@@ -445,7 +445,7 @@ if __name__ == "__main__":
     general = config["General"]
 
     # Start database
-    db = Database(os.environ["DBPATH"])
+    db = Database(os.environ["DB_PATH"])
     threading.Thread(target=database_thread, args=(db,)).start()
 
     # Start poster

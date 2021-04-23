@@ -2,5 +2,7 @@
 Description=Reddit post scheduler
 
 [Service]
-ExecStart=/usr/bin/python3 /home/jeanluc/Code/reddit-scheduler/test.py
-Environment=PYTHONBUFFERED=1
+Environment=CONFIG_PATH=/home/jeanluc/Code/reddit-scheduler/config.ini
+Environment=DB_PATH=/home/jeanluc/Code/reddit-scheduler/database.sqlite
+Environment=DEBUG=1
+ExecStart=/home/jeanluc/Code/reddit-scheduler/dist/server
