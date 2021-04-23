@@ -121,12 +121,18 @@ class DbCommand:
         self.obj = obj
         self.oneshot = Queue(maxsize=1)
 
-    def reply(self, obj: Any):
-        """Helper for database to reply."""
-        self.oneshot.put_nowait(DbReply(obj, obj is not None))
+    # Datbase helpers
+    def reply_ok(self, obj: Any):
+        self.reply(obj, False)
 
+    def reply_err(self, obj: Any):
+        self.reply(obj, True)
+
+    def reply(self, obj: Any, is_err: bool):
+        self.oneshot.put_nowait(DbReply(obj, is_err))
+
+    # Client helpers
     def wait_for_answer(self):
-        """Helper for client to wait for an answer."""
         return self.oneshot.get(timeout=LOCK_TIMEOUT)
 
     def __str__(self):
@@ -192,44 +198,43 @@ class Database:
                 break
             elif command == "post":
                 try:
-                    entry.reply(self.add_post(entry.obj))
+                    msg = self.add_post(entry.obj)
+                    entry.reply(msg, msg != "")
                 except:
                     log.exception("Failed to insert post into database:\n%s", entry.obj)
-                    entry.reply(ERR_INTERNAL)
+                    entry.reply_err(ERR_INTERNAL)
             elif command == "eligible":
                 try:
-                    self.get_posts_from_query(QUERY_ELIGIBLE)
-                    entry.reply(None)
+                    posts = self.get_posts_from_query(QUERY_ELIGIBLE)
+                    entry.reply(posts, posts == None)
                 except:
                     log.exception("Failed to get eligible posts")
-                    entry.reply(ERR_INTERNAL)
+                    entry.reply_err(ERR_INTERNAL)
             elif command == "all":
                 try:
-                    self.get_posts_from_query(QUERY_ALL)
-                    entry.reply(None)
+                    all = self.get_posts_from_query(QUERY_ALL)
+                    entry.reply(all, all == None)
                 except:
                     log.exception("Failed to get all posts")
-                    entry.reply(ERR_INTERNAL)
+                    entry.reply_err(ERR_INTERNAL)
             elif command == "edit":
                 try:
-                    self.edit_post(entry.obj)
-                    entry.reply(None)
+                    entry.reply_ok(self.edit_post(entry.obj))
                 except:
                     log.exception("Failed to edit post")
-                    entry.reply(ERR_INTERNAL)
+                    entry.reply_err(ERR_INTERNAL)
             elif command == "mark_posted":
                 try:
-                    self.mark_posted(entry.obj)
-                    entry.reply(None)
+                    entry.reply_ok(self.mark_posted(entry.obj))
                 except:
                     log.exception(
                         "Failed to mark post with id %d as posted", entry.obj.id
                     )
-                    entry.reply(ERR_INTERNAL)
+                    entry.reply_err(ERR_INTERNAL)
 
     def add_post(self, post: rpc.Post):
         if not validate_post(post):
-            return ("invalid post, client should not have sent this")
+            return "invalid post, client should not have sent this"
         self.conn.execute(
             QUERY_INSERT_POST,
             (post.title, post.subreddit, post.body, post.scheduled_time, 0),
