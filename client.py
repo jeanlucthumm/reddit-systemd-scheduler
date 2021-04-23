@@ -1,7 +1,6 @@
 import configparser
 from datetime import datetime
 import os
-import time
 
 import click
 from dateutil import parser
@@ -14,13 +13,7 @@ import reddit_pb2_grpc as reddit_grpc
 
 PROMPT = "> "
 TIME_FMT = "%m/%d/%Y %I:%M %p"
-
-TEST_POST = rpc.Post(
-    title="Hello there",
-    subreddit="test",
-    body="sample body disregard",
-    scheduled_time=int(time.time()),
-)
+MSG_BODY_EDITOR = "Replace this with post body and save, or quit editor for empty body"
 
 CONFIG_SEARCH_PATHS = [
     os.path.expandvars("$HOME/.config/reddit-scheduler/config.ini"),
@@ -47,11 +40,7 @@ ERR_INVALID_POST_FILE = (
     "Parsing the YAML file for the post failed with the following error:\n\n"
 )
 
-MSG_BODY_EDITOR = "Replace this with post body and save, or quit editor for empty body"
-
 ERR_SAMPLE_CONFIG = "Run `reddit post --sample` to output a sample YAML post file in the current directory"
-
-
 for path in CONFIG_SEARCH_PATHS:
     ERR_MISSING_CONFIG += f"  - {path}\n"
 
@@ -81,7 +70,9 @@ def make_post_from_cli():
         if time > now:
             break
 
-        print("The time you entered is in the past, so the service will post immediately:")
+        print(
+            "The time you entered is in the past, so the service will post immediately:"
+        )
         print("Entered:", time.strftime(TIME_FMT))
         print("Current: ", now.strftime(TIME_FMT))
         print("Do you want to continue (c), enter a new time (t), or exit (e)? (c/t/e)")
@@ -174,15 +165,6 @@ def print_post_info(all_posts, post_id):
         ["Body", post.body],
     ]
     print(tabulate(rows))
-
-
-def old_main():
-    with grpc.insecure_channel("localhost:50051") as channel:
-        stub = reddit_grpc.RedditSchedulerStub(channel)
-        req = rpc.ListPostsRequest()
-        reply = stub.ListPosts(req)
-        for r in reply.posts:
-            print(r)
 
 
 @click.command()
