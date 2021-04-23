@@ -1,15 +1,15 @@
 from concurrent import futures
-import configparser
+from configparser import ConfigParser
 import logging
-import time
 import os
-import sqlite3
-import threading
 from queue import Queue
 import queue
-import time
+import sqlite3
 import sys
-from configparser import ConfigParser
+import threading
+import time
+import time
+from typing import Any, Callable
 
 import grpc
 import praw
@@ -37,6 +37,7 @@ CONFIG_SEARCH_PATHS = [p for p in CONFIG_SEARCH_PATHS if p is not None]
 
 ERR_MISSING_CONFIG = "Could not find a config file. Search path is: "
 ERR_MISSING_CONFIG += ", ".join(CONFIG_SEARCH_PATHS)
+ERR_INTERNAL = "internal error. See service logs"
 
 # TODO how do you deal with schema updates?
 # Existing table cols will not be updated due to IF NOT EXISTS
@@ -85,12 +86,12 @@ TEST_POST = rpc.Post(
 )
 
 
-def validate_post(post):
+def validate_post(post: rpc.Post):
     # In proto3 unset values are equal to default values
     return post.title != "" and post.subreddit != "" and post.scheduled_time != 0
 
 
-def make_post_from_row(row):
+def make_post_from_row(row: sqlite3.Row):
     return rpc.Post(
         title=row["title"],
         subreddit=row["subreddit"],
@@ -100,18 +101,23 @@ def make_post_from_row(row):
 
 
 class DbCommand:
-    def __init__(self, command, obj):
+    """Primary way to instruct Database to do something.
+
+    Command consist of a string descriptor and object payload and can be queued
+    in the Database. The Database will reply via the `oneshot` channel
+    """
+
+    def __init__(self, command: str, obj: Any):
         self.command = command
         self.obj = obj
         self.oneshot = Queue(maxsize=1)
 
-    def reply_err(self, err):
-        self.oneshot.put_nowait(DbReply(err, True))
-
-    def reply_ok(self, obj=None):
-        self.oneshot.put_nowait(DbReply(obj, False))
+    def reply(self, obj: Any):
+        """Helper for database to reply."""
+        self.oneshot.put_nowait(DbReply(obj, obj is not None))
 
     def wait_for_answer(self):
+        """Helper for client to wait for an answer."""
         return self.oneshot.get(timeout=LOCK_TIMEOUT)
 
     def __str__(self):
@@ -119,7 +125,9 @@ class DbCommand:
 
 
 class DbReply:
-    def __init__(self, obj, is_err=False):
+    """Database sends this object as a reply in one shot channels of DbCommands."""
+
+    def __init__(self, obj: Any, is_err: bool = False):
         self.is_err = is_err
         self.obj = obj
 
@@ -131,14 +139,20 @@ class DbReply:
 
 
 class Database:
-    def __init__(self, path):
+    """Wraps a SQL connection and provides an async channel for SQL operations."""
+
+    def __init__(self, path: str):
         self.path = path
         self.queue = Queue(100)
         # We initialize the connection in start() so that all SQL components are
         # running in the same thread
         self.conn = None
 
-    def queue_command(self, command):
+    def queue_command(self, command: DbCommand):
+        """Queue a command to be handled by the db later.
+
+        This may block if the queue buffer if full and errors after LOCK_TIMEOUT.
+        """
         log.debug("Database queued command: %s", command)
         try:
             self.queue.put(command, timeout=LOCK_TIMEOUT)
@@ -160,7 +174,7 @@ class Database:
 
         # Handle commands
         while True:
-            entry = self.queue.get()
+            entry: DbCommand = self.queue.get()
             log.debug("Database handling command: %s", entry)
             command = entry.command
             if command == "quit":
@@ -169,62 +183,62 @@ class Database:
                 break
             elif command == "post":
                 try:
-                    result = self.add_post(entry.obj)
-                    entry.reply_ok(result)
+                    entry.reply(self.add_post(entry.obj))
                 except:
                     log.exception("Failed to insert post into database:\n%s", entry.obj)
-                    entry.reply_err("internal error. See service logs")
+                    entry.reply(ERR_INTERNAL)
             elif command == "eligible":
                 try:
-                    result = self.get_posts_from_query(QUERY_ELIGIBLE)
-                    entry.reply_ok(result)
+                    self.get_posts_from_query(QUERY_ELIGIBLE)
+                    entry.reply(None)
                 except:
                     log.exception("Failed to get eligible posts")
-                    entry.reply_err("internal error. See service logs")
+                    entry.reply(ERR_INTERNAL)
             elif command == "all":
                 try:
-                    result = self.get_posts_from_query(QUERY_ALL)
-                    entry.reply_ok(result)
+                    self.get_posts_from_query(QUERY_ALL)
+                    entry.reply(None)
                 except:
                     log.exception("Failed to get all posts")
-                    entry.reply_err("internal error. See service logs")
+                    entry.reply(ERR_INTERNAL)
             elif command == "edit":
                 try:
-                    result = self.edit_post(entry.obj)
-                    entry.reply_ok(result)
+                    self.edit_post(entry.obj)
+                    entry.reply(None)
                 except:
-                    log.exception("Failed to get all posts")
-                    entry.reply_err("internal error. See service logs")
+                    log.exception("Failed to edit post")
+                    entry.reply(ERR_INTERNAL)
             elif command == "mark_posted":
                 try:
-                    result = self.mark_posted(entry.obj)
-                    entry.reply_ok(result)
+                    self.mark_posted(entry.obj)
+                    entry.reply(None)
                 except:
-                    log.exception("Failed to get all posts")
-                    entry.reply_err("internal error. See service logs")
+                    log.exception(
+                        "Failed to mark post with id %d as posted", entry.obj.id
+                    )
+                    entry.reply(ERR_INTERNAL)
 
-    def add_post(self, post):
+    def add_post(self, post: rpc.Post):
         if not validate_post(post):
-            # TODO these should be string replies because it's an RPC usage error
-            raise ValueError("invalid post")
+            return ("invalid post, client should not have sent this")
         self.conn.execute(
             QUERY_INSERT_POST,
             (post.title, post.subreddit, post.body, post.scheduled_time, 0),
         )
         self.conn.commit()
 
-    def edit_post(self, request):
+    def edit_post(self, request: rpc.EditPostRequest):
         if request.operation == rpc.EditPostRequest.Operation.DELETE:
             self.conn.execute(QUERY_DELETE, (request.id,))
             self.conn.commit()
         else:
             raise ValueError(f"unknown edit operation: {request.operation}")
 
-    def mark_posted(self, post_id):
+    def mark_posted(self, post_id: int):
         self.conn.execute(QUERY_MARK_POSTED, (post_id,))
         self.conn.commit()
 
-    def get_posts_from_query(self, query):
+    def get_posts_from_query(self, query: str):
         posts = []
         for row in self.conn.execute(query):
             posts.append(
@@ -236,72 +250,67 @@ class Database:
 
 
 class Servicer(reddit_grpc.RedditSchedulerServicer):
-    def ListPosts(self, request, context):
-        log.debug("Got ListPosts RPC")
+    """Implementation of grpc service which responds to client requests."""
+
+    def ListPosts(self, request, _):
+        return self.database_op(
+            DbCommand("all", None),
+            "ListPosts",
+            request,
+            lambda msg, obj: rpc.ListPostsReply(error_msg=msg, posts=obj),
+        )
+
+    def SchedulePost(self, request, _):
+        return self.database_op(
+            DbCommand("post", request),
+            "SchedulePost",
+            request,
+            lambda msg, _: rpc.SchedulePostReply(error_msg=msg),
+        )
+
+    def EditPost(self, request, _):
+        return self.database_op(
+            DbCommand("edit", request),
+            "EditPost",
+            request,
+            lambda msg, _: rpc.EditPostReply(error_msg=msg),
+        )
+
+    def database_op(
+        self,
+        command: DbCommand,
+        rpc_name: str,
+        request: Any,
+        reply_handler: Callable[[str, Any], Any],
+    ):
+        log.debug("Got %s RPC", rpc_name)
         try:
-            command = DbCommand("all", None)
             self.db.queue_command(command)
-            db_reply = command.oneshot.get(timeout=LOCK_TIMEOUT)
-            msg = db_reply.obj if db_reply.is_err else ""
-            return rpc.ListPostsReply(posts=db_reply.obj, error_msg=msg)
+            reply = command.oneshot.get(timeout=LOCK_TIMEOUT)
+            msg = str(reply.obj) if reply.is_err else ""
+            return reply_handler(msg, reply.obj)
         except queue.Empty:
             log.exception(
-                "ListPosts RPC timed out waiting for database with request:\n%s",
-                request,
+                "%s RPC timed out waiting for database with command:\n%s",
+                rpc_name,
+                command,
             )
+            return reply_handler(ERR_INTERNAL, None)
         except:
-            log.exception("Error handling SchedulePost RPC with request:\n%s", request)
-            return rpc.ListPostsReply(error_msg="internal server error. check logs")
-
-    def SchedulePost(self, request, context):
-        log.debug("Got SchedulePost RPC")
-        try:
-            command = DbCommand("post", request)
-            self.db.queue_command(command)
-            db_reply = command.oneshot.get(timeout=LOCK_TIMEOUT)
-            msg = db_reply.obj if db_reply.is_err else ""
-            return rpc.SchedulePostReply(error_msg=msg)
-        except queue.Empty:
-            log.exception(
-                "SchedulePost RPC timed out waiting for database with request:\n%s",
-                request,
-            )
-        except:
-            log.exception("Error handling SchedulePost RPC with request:\n%s", request)
-            return rpc.SchedulePostReply(error_msg="internal server error. check logs")
-
-    def EditPost(self, request, context):
-        # TODO generalize this
-        log.debug("Got EditPost RPC")
-        try:
-            command = DbCommand("edit", request)
-            self.db.queue_command(command)
-            db_reply = command.oneshot.get(timeout=LOCK_TIMEOUT)
-            msg = db_reply.obj if db_reply.is_err else ""
-            return rpc.SchedulePostReply(error_msg=msg)
-        except queue.Empty:
-            log.exception(
-                "EditPost RPC timed out waiting for database with request:\n%s",
-                request,
-            )
-        except:
-            log.exception("Error handling SchedulePost RPC with request:\n%s", request)
-            return rpc.SchedulePostReply(error_msg="internal server error. check logs")
-
-    def link_poster(self, poster):
-        self.poster = poster
-        return self
+            log.exception("Error handling %s RPC with request:\n%s", request)
+            return reply_handler(ERR_INTERNAL, None)
 
     def link_database(self, db):
         self.db = db
         return self
 
 
-def post_to_reddit(reddit, post):
-    print("Posting to subreddit")
+def post_to_reddit(reddit: praw.Reddit, entry: rpc.PostDbEntry):
+    log.info("Posting post with id %d to reddit", entry.id)
+    post = entry.post
     subreddit = reddit.subreddit(post.subreddit)
     subreddit.submit(title=post.title, selftext=post.body, url=None)
-    print("Submitted")
+    log.info("Submitted post with id %d", entry.id)
 
 
 def simulate_post(post):
@@ -309,7 +318,9 @@ def simulate_post(post):
 
 
 class Poster:
-    def __init__(self, reddit_config, dry_run=True, step_interval=5):
+    """Routinely checks if any posts are eligible to be posted and then posts them to Reddit."""
+
+    def __init__(self, reddit_config, dry_run: bool = True, step_interval: float = 5):
         self.dry_run = dry_run
         self.step_interval = step_interval
 
@@ -323,6 +334,7 @@ class Poster:
         )
 
     def step(self):
+        """Posts all eligible posts and marks them as posted in the datbase."""
         log.debug("Poster doing step")
         # Get the eligible posts from the database
         eligible = []
@@ -345,7 +357,7 @@ class Poster:
                 posted.append(entry)
             else:
                 try:
-                    post_to_reddit(self.reddit, entry.post)
+                    post_to_reddit(self.reddit, entry)
                     posted.append(entry)
                 except:
                     log.exception("Failed to post post with id %d", entry.id)
@@ -396,13 +408,19 @@ def is_valid_config(config: ConfigParser):
     try:
         general = config["General"]
         general.getint("Port")
-        general.getint("PostInterval")
+        general.getfloat("PostInterval")
         general.getboolean("DryRun")
+
+        reddit = config["RedditAPI"]
+        reddit["Username"]
+        reddit["Password"]
+        reddit["ClientId"]
+        reddit["ClientSecret"]
         return True
     except ValueError as e:
         log.error("Config files contains errors: %s", e)
     except KeyError as e:
-        log.error("Config file missing section: %s", e)
+        log.error("Config file missing section or value: %s", e)
     return False
 
 
@@ -419,7 +437,7 @@ if __name__ == "__main__":
     # Start poster
     poster = Poster(
         config["RedditAPI"],
-        os.environ.get("DRY_RUN") or general.getboolean("DryRun"),
+        bool(os.environ.get("DRY_RUN")) or general.getboolean("DryRun"),
         general.getint("PostInterval"),
     )
     poster.link_database(db)
