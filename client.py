@@ -199,14 +199,15 @@ def post(config, file):
     date and time. Note that dates are US style: DD/MM.
 
     The format of the json file is as follows:
-    {
-        "title": "...",
-        "subreddit": "...",
-        "body": "",
-        "scheduled_time": "12/21/2088 4:30 AM"
-    }
-
-    Empty string for 'body' means no body.
+    ```
+    title: Sample title
+    subreddit: ooer
+    body: >
+        You can do multi line bodies like this
+        Or you can get rid of the '>' and do it all in line
+        Or you can leave this empty for no body
+    scheduled_time: 4/20
+    ```
     """
     rpc_post = make_post_from_cli() if file is None else make_post_from_file(file)
     if rpc_post is None:
