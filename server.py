@@ -6,6 +6,13 @@ Consists of 3 classes running on separate threads:
 - Database: wrapper around the database
 
 The Servicer and the Poster both enqueue commands in the Database.
+
+Environment variables:
+DEBUG:          Enables log granularity
+LOG_STDOUT:     Enables logging to stdout
+CONFIG_PATH:    Set path of config file. Otherwise searches as defined in the global
+                var CONFIG_SEARCH_PATHS
+DB_PATH:        Sets the path to the database to use. Creates new database if none is found there
 """
 from concurrent import futures
 from configparser import ConfigParser
@@ -35,7 +42,8 @@ log = logging.getLogger()
 log.addHandler(journal.JournalHandler())
 stdout_handler = logging.StreamHandler(sys.stdout)
 stdout_handler.setLevel(LOG_LEVEL)
-log.addHandler(stdout_handler)
+if os.environ.get("LOG_STDOUT"):
+    log.addHandler(stdout_handler)
 log.setLevel(LOG_LEVEL)
 
 CONFIG_SEARCH_PATHS = [
