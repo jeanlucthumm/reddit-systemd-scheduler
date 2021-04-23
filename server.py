@@ -27,8 +27,8 @@ from systemd import journal
 import reddit_pb2 as rpc
 import reddit_pb2_grpc as reddit_grpc
 
-LOG_LEVEL = logging.DEBUG
-LOCK_TIMEOUT = 2  # seconds
+LOG_LEVEL = logging.DEBUG if os.environ.get("DEBUG") else logging.INFO
+LOCK_TIMEOUT = 10  # seconds
 
 # Logging setup
 log = logging.getLogger()
@@ -459,7 +459,8 @@ if __name__ == "__main__":
     )
     addr = f"[::]:{general.getint('Port')}"
     server.add_insecure_port(addr)
-    log.info("Starting rpc server on %s", addr)
+    log.debug("Starting rpc server on %s", addr)
+    log.info("Service started on %s", addr)
 
     server.start()
     server.wait_for_termination()
