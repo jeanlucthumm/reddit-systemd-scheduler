@@ -29,7 +29,7 @@ from typing import Any, Callable
 
 import grpc
 import praw
-from systemd import journal
+from systemd import journal, daemon
 
 import reddit_pb2 as rpc
 import reddit_pb2_grpc as reddit_grpc
@@ -476,5 +476,6 @@ if __name__ == "__main__":
     log.info("Service started on %s", addr)
 
     server.start()
+    daemon.notify('READY=1')
     server.wait_for_termination()
     db.queue_command(DbCommand(command="quit", obj=None))
