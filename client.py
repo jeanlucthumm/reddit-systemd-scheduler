@@ -257,12 +257,6 @@ def delete(config, post_id):
         print(ERR_MISSING_SERVICE)
 
 
-@click.command()
-@click.pass_obj
-def debug(config):
-    print(config.port)
-
-
 def get_default_config_path():
     for path in CONFIG_SEARCH_PATHS:
         if os.path.exists(path):
@@ -275,6 +269,7 @@ def get_default_config_path():
 @click.option("--port", type=int, default=None)
 @click.pass_context
 def main(ctx, config, port):
+    """CLI for reddit scheduler service."""
     if port is None:
         if config is None:
             print(ERR_MISSING_CONFIG)
