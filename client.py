@@ -290,5 +290,4 @@ if __name__ == "__main__":
     main.add_command(post)
     main.add_command(list)
     main.add_command(delete)
-    main.add_command(debug)
     main()
