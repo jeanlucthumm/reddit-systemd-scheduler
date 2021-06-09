@@ -10,27 +10,26 @@ While other reddit scheduling tools exist, they do not integrate with systemd, n
 
 ## Install
 
-**TODO** AUR and PPA packages coming soon...
+### AUR
+
+Coming soon...
 
 ### Manual
+```
+git clone https://github.com/jeanlucthumm/reddit-systemd-scheduler
+cd reddit-systemd-scheduler
+sudo make install
+```
+If you want to uninstal:
+```
+sudo make uninstall
+```
 
-**TODO**
 
 ## Usage
 
-There are two parts: a service that does the actual work and a client that talks to it. First, start the service:
-
-```
-systemctl --user start reddit-scheduler
-```
-
-Check that it started via the status logs. Any errors will be reported here:
-
-```
-systemctl --user status reddit-scheduler
-```
-
-Fill out the `RedditAPI` section in the config file at `~/.config/reddit-scheduler/config.ini`.
+There are two parts: a service that does the actual work and a client that talks to it. First
+fill out the `RedditAPI` section in the config file at `~/.config/reddit-scheduler/config.ini`.
 Check out [this Reddit thread](https://www.reddit.com/r/redditdev/comments/hasnnc/where_do_i_find_the_reddit_client_id_and_secret/) 
 for how to get the client id and secret (you will have to create a new app on Reddit).
 
@@ -40,6 +39,18 @@ Username = ...
 Password = ...
 ClientId = ...
 ClientSecret = ...
+```
+
+Then, start the service:
+
+```
+systemctl --user start reddit-scheduler
+```
+
+Check that it started via the status logs. Any errors will be reported here:
+
+```
+systemctl --user status reddit-scheduler
 ```
 
 Now you're free to use the CLI to schedule posts and such. Try running this first to see some of the options:
