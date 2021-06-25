@@ -3,12 +3,6 @@ ifeq ($(PREFIX),)
 	PREFIX := /usr
 endif
 
-ifeq ($(XDG_CONFIG_HOME),)
-	CONFIGDIR := $(HOME)/.config
-else
-	CONFIGDIR := $(XDG_CONFIG_HOME)
-endif
-
 default:
 	( \
 	python -m venv venv; \
@@ -30,8 +24,8 @@ proto:
 install: default
 	install -Dm755 dist/client $(DESTDIR)$(PREFIX)/bin/reddit
 	install -Dm755 dist/server $(DESTDIR)$(PREFIX)/bin/reddit-scheduler
-	install -Dm644 sample-config.ini $(DESTDIR)$(CONFIGDIR)/reddit-scheduler/config.ini
-	install -Dm644 reddit-scheduler.service $(DESTDIR)$(CONFIGDIR)/systemd/user/reddit-scheduler.service
+	install -Dm644 sample-config.ini $(DESTDIR)$(PREFIX)/share/doc/reddit-scheduler/examples/config.ini
+	install -Dm644 reddit-scheduler.service $(DESTDIR)$(PREFIX)/lib/systemd/user/reddit-scheduler.service
 
 uninstall:
 	rm -f $(DESTDIR)$(PREFIX)/bin/reddit

@@ -6,6 +6,7 @@ pkgdesc="systemd service for scheduling posts to reddit"
 url="https://github.com/jeanlucthumm/reddit-systemd-scheduler"
 arch=("any")
 makedepends=("pyinstaller" "git" "python")
+license=("MIT")
 source=("${pkgname%-*}::git+git://github.com/jeanlucthumm/${pkgname%-*}.git")
 sha1sums=("SKIP")
 
