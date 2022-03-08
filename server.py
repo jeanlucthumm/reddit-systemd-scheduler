@@ -25,7 +25,7 @@ import sys
 import threading
 import time
 import time
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 
 import grpc
 import praw
@@ -169,7 +169,7 @@ class Database:
         self.queue = Queue(100)
         # We initialize the connection in start() so that all SQL components are
         # running in the same thread
-        self.conn = None
+        self.conn = None  # type: Optional[sqlite3.Connection]
 
     def queue_command(self, command: DbCommand):
         """Queue a command to be handled by the db later.
@@ -241,6 +241,7 @@ class Database:
                     entry.reply_err(ERR_INTERNAL)
 
     def add_post(self, post: rpc.Post):
+        if self.conn == None: assert False
         if not validate_post(post):
             return "invalid post, client should not have sent this"
         self.conn.execute(
@@ -250,6 +251,7 @@ class Database:
         self.conn.commit()
 
     def edit_post(self, request: rpc.EditPostRequest):
+        if self.conn == None: assert False
         if request.operation == rpc.EditPostRequest.Operation.DELETE:
             self.conn.execute(QUERY_DELETE, (request.id,))
             self.conn.commit()
@@ -257,10 +259,12 @@ class Database:
             raise ValueError(f"unknown edit operation: {request.operation}")
 
     def mark_posted(self, post_id: int):
+        if self.conn == None: assert False
         self.conn.execute(QUERY_MARK_POSTED, (post_id,))
         self.conn.commit()
 
     def get_posts_from_query(self, query: str):
+        if self.conn == None: assert False
         posts = []
         for row in self.conn.execute(query):
             posts.append(
