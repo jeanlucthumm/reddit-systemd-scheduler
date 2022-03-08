@@ -3,6 +3,6 @@ Description=Reddit post scheduler
 
 [Service]
 Environment=CONFIG_PATH=%h/.config/reddit-scheduler/config.ini
-Environment=DB_PATH=/var/lib/reddit-scheduler/database.sqlite
+Environment=DB_PATH=%h/.config/reddit-scheduler/database.sqlite
 Environment=DEBUG=1
 ExecStart=/opt/reddit-scheduler/venv/bin/python /opt/reddit-scheduler/server.py
