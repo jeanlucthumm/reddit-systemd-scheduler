@@ -154,6 +154,7 @@ def print_post_info(all_posts, post_id):
             entry = p
     if entry is None:
         print(f"No post with id {post_id}.")
+        return
     post = entry.post
     rows = [
         ["Title", post.title],
