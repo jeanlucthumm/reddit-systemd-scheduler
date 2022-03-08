@@ -137,7 +137,7 @@ def print_post_list(posts, filter):
             continue
         row = []
         post = entry.post
-        pretty_time = datetime.utcfromtimestamp(post.scheduled_time).strftime(TIME_FMT)
+        pretty_time = datetime.fromtimestamp(post.scheduled_time).strftime(TIME_FMT)
         row.append(entry.id)
         row.append(pretty_time)
         row.append(post.subreddit)
@@ -160,7 +160,7 @@ def print_post_info(all_posts, post_id):
         ["Subreddit", post.subreddit],
         [
             "Scheduled time",
-            datetime.utcfromtimestamp(post.scheduled_time).strftime(TIME_FMT),
+            datetime.fromtimestamp(post.scheduled_time).strftime(TIME_FMT),
         ],
         ["Body", post.body],
     ]
