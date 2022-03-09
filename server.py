@@ -249,6 +249,7 @@ class Database:
             (post.title, post.subreddit, post.body, post.scheduled_time, 0),
         )
         self.conn.commit()
+        return ""
 
     def edit_post(self, request: rpc.EditPostRequest):
         if self.conn == None: assert False
