@@ -196,7 +196,7 @@ def post(config, file):
     if rpc_post is None:
         return
     try:
-        with grpc.insecure_channel(f"localhost:{config.port}") as channel:
+        with grpc.insecure_channel(f"[::]:{config.port}") as channel:
             stub = reddit_grpc.RedditSchedulerStub(channel)
             reply = stub.SchedulePost(rpc_post)
             if reply.error_msg:
@@ -221,7 +221,7 @@ def list(config, filter, post_id):
     ID. Otherwise, lists all posts filtered with the -f option.
     """
     try:
-        with grpc.insecure_channel(f"localhost:{config.port}") as channel:
+        with grpc.insecure_channel(f"[::]:{config.port}") as channel:
             stub = reddit_grpc.RedditSchedulerStub(channel)
             reply = stub.ListPosts(rpc.ListPostsRequest())
             if reply.error_msg:
@@ -245,7 +245,7 @@ def delete(config, post_id):
     """
     click.confirm("Are you sure?", abort=True)
     try:
-        with grpc.insecure_channel(f"localhost:{config.port}") as channel:
+        with grpc.insecure_channel(f"[::]:{config.port}") as channel:
             stub = reddit_grpc.RedditSchedulerStub(channel)
             reply = stub.EditPost(
                 rpc.EditPostRequest(operation=rpc.EditPostRequest.DELETE, id=post_id)
