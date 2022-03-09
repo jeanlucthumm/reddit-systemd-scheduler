@@ -25,11 +25,22 @@ If you want to uninstal:
 sudo make uninstall
 ```
 
+#### Details
+
+`/opt/reddit-scheduler` directory will be created containing a python virtual environment and the relevant
+python scripts. `/usr/bin/reddit` will also be created which is a script that runs the client in `/opt/reddit-scheduler`.
+
 
 ## Usage
 
-There are two parts: a service that does the actual work and a client that talks to it. First
-fill out the `RedditAPI` section in the config file at `~/.config/reddit-scheduler/config.ini`.
+First copy the default config:
+
+```
+mkdir -p ~/.config/reddit-scheduler
+cp /usr/share/doc/reddit-scheduler/examples/config.ini ~/.config/reddit-scheduler/config.ini
+```
+
+Then, fill out the `RedditAPI` section.
 Check out [this Reddit thread](https://www.reddit.com/r/redditdev/comments/hasnnc/where_do_i_find_the_reddit_client_id_and_secret/) 
 for how to get the client id and secret (you will have to create a new app on Reddit).
 
