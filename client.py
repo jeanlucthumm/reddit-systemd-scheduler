@@ -58,10 +58,10 @@ def make_post_from_cli():
     input(PROMPT + "Press any key to launch editor for post body...")
     body = click.edit(MSG_BODY_EDITOR)
     while True:
-        print("Post time:")
+        print("Post time (US style):")
         time_input = input(PROMPT)
         try:
-            time = parser.parse(time_input, dayfirst=True)
+            time = parser.parse(time_input, dayfirst=False)
         except ValueError:
             print("Could not parse time:", time_input)
             return None
