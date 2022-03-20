@@ -16,6 +16,15 @@ proto:
 	python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. --mypy_out=. reddit.proto; \
 	)
 
+start:
+	systemctl --user restart reddit-scheduler
+
+status:
+	systemctl --user status reddit-scheduler
+
+reload:
+	systemctl --user daemon-reload
+
 install: default
 	install -Dm755 server.py $(DESTDIR)$(default_dir)/server.py
 	install -Dm755 client.py $(DESTDIR)$(default_dir)/client.py
