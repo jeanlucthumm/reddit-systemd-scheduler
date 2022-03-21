@@ -178,3 +178,4 @@ tags
 *_pb2_grpc.py
 config.ini
 *.sqlite*
+*.pyi
