@@ -22,6 +22,12 @@ message SchedulePostReply {
 }
 
 message Post {
+  oneof post_type {
+    TextPost text_post = 1;
+  }
+}
+
+message TextPost {
   string title = 1;
   string subreddit = 2;
   string body = 3;
@@ -38,10 +44,8 @@ message EditPostRequest {
   // TODO support more operations if users request.
   // For now we assume that if you want to edit its easier to just
   // delete and start over again
-  enum Operation {
-    DELETE = 0;
-  }
-  
+  enum Operation { DELETE = 0; }
+
   Operation operation = 1;
   int32 id = 2;
 }

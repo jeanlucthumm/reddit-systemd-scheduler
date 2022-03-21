@@ -84,12 +84,16 @@ def make_post_from_cli():
         else:
             return None
 
-    return rpc.Post(
-        title=title,
-        subreddit=subreddit,
-        body=body if body is not None else "",
-        scheduled_time=int(time.timestamp()),
+    post = rpc.Post()
+    post.text_post.CopyFrom(
+        rpc.TextPost(
+            title=title,
+            subreddit=subreddit,
+            body=body if body is not None else "",
+            scheduled_time=int(time.timestamp()),
+        )
     )
+    return post
 
 
 def make_post_from_file(file):
@@ -118,12 +122,14 @@ def make_post_from_file(file):
         if input(PROMPT) != "y":
             return None
 
-    return rpc.Post(
+    post= rpc.Post()
+    post.text_post.CopyFrom(rpc.TextPost(
         title=file["title"],
         subreddit=file["subreddit"],
         body=file["body"],
         scheduled_time=int(time.timestamp()),
-    )
+    ))
+    return post
 
 
 def print_post_list(posts, filter):

@@ -46,6 +46,20 @@ global___SchedulePostReply = SchedulePostReply
 
 class Post(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
+    TEXT_POST_FIELD_NUMBER: builtins.int
+    @property
+    def text_post(self) -> global___TextPost: ...
+    def __init__(self,
+        *,
+        text_post: typing.Optional[global___TextPost] = ...,
+        ) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["post_type",b"post_type","text_post",b"text_post"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["post_type",b"post_type","text_post",b"text_post"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing_extensions.Literal["post_type",b"post_type"]) -> typing.Optional[typing_extensions.Literal["text_post"]]: ...
+global___Post = Post
+
+class TextPost(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
     TITLE_FIELD_NUMBER: builtins.int
     SUBREDDIT_FIELD_NUMBER: builtins.int
     BODY_FIELD_NUMBER: builtins.int
@@ -62,7 +76,7 @@ class Post(google.protobuf.message.Message):
         scheduled_time: builtins.int = ...,
         ) -> None: ...
     def ClearField(self, field_name: typing_extensions.Literal["body",b"body","scheduled_time",b"scheduled_time","subreddit",b"subreddit","title",b"title"]) -> None: ...
-global___Post = Post
+global___TextPost = TextPost
 
 class PostDbEntry(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor

@@ -61,6 +61,7 @@ ERR_INTERNAL = "internal error. See service logs"
 QUERY_CREATE_TABLE = """
 CREATE TABLE IF NOT EXISTS Queue (
     id INTEGER PRIMARY KEY,
+    type TEXT NOT NULL,
     title TEXT NOT NULL,
     subreddit TEXT NOT NULL,
     body TEXT,
@@ -69,9 +70,9 @@ CREATE TABLE IF NOT EXISTS Queue (
 );
 """
 
-QUERY_INSERT_POST = """
-INSERT INTO Queue (title, subreddit, body, scheduled_time, posted)
-VALUES (?, ?, ?, ?, ?);
+QUERY_INSERT_TEXT_POST = """
+INSERT INTO Queue (type, title, subreddit, body, scheduled_time, posted)
+VALUES ("text", ?, ?, ?, ?, ?);
 """
 
 QUERY_ELIGIBLE = """
@@ -95,7 +96,7 @@ SET posted = 1
 WHERE id == ?;
 """
 
-TEST_POST = rpc.Post(
+TEST_POST = rpc.TextPost(
     title="Hello there",
     subreddit="test",
     body="sample body disregard",
@@ -103,18 +104,23 @@ TEST_POST = rpc.Post(
 )
 
 
-def validate_post(post: rpc.Post):
+def validate_text_post(post: rpc.TextPost):
     # In proto3 unset values are equal to default values
     return post.title != "" and post.subreddit != "" and post.scheduled_time != 0
 
 
-def make_post_from_row(row: sqlite3.Row):
-    return rpc.Post(
-        title=row["title"],
-        subreddit=row["subreddit"],
-        body=row["body"] if not None else "",
-        scheduled_time=row["scheduled_time"],
-    )
+def make_post_from_row(row: sqlite3.Row) -> rpc.Post:
+    if row["type"] == "text":
+        text_post = rpc.TextPost(
+            title=row["title"],
+            subreddit=row["subreddit"],
+            body=row["body"] if not None else "",
+            scheduled_time=row["scheduled_time"],
+        )
+        post = rpc.Post()
+        post.text_post.CopyFrom(text_post)
+        return post
+    assert False
 
 
 class DbCommand:
@@ -241,18 +247,23 @@ class Database:
                     entry.reply_err(ERR_INTERNAL)
 
     def add_post(self, post: rpc.Post):
-        if self.conn == None: assert False
-        if not validate_post(post):
-            return "invalid post, client should not have sent this"
-        self.conn.execute(
-            QUERY_INSERT_POST,
-            (post.title, post.subreddit, post.body, post.scheduled_time, 0),
-        )
-        self.conn.commit()
-        return ""
+        if self.conn == None:
+            assert False
+        if post.HasField("text_post"):
+            p = post.text_post
+            if not validate_text_post(p):
+                return "invalid post, client should not have sent this"
+            self.conn.execute(
+                QUERY_INSERT_TEXT_POST,
+                (p.title, p.subreddit, p.body, p.scheduled_time, 0),
+            )
+            self.conn.commit()
+            return ""
+        raise ValueError(f"could not determine type of post to add: {post}")
 
     def edit_post(self, request: rpc.EditPostRequest):
-        if self.conn == None: assert False
+        if self.conn == None:
+            assert False
         if request.operation == rpc.EditPostRequest.Operation.DELETE:
             self.conn.execute(QUERY_DELETE, (request.id,))
             self.conn.commit()
@@ -260,12 +271,14 @@ class Database:
             raise ValueError(f"unknown edit operation: {request.operation}")
 
     def mark_posted(self, post_id: int):
-        if self.conn == None: assert False
+        if self.conn == None:
+            assert False
         self.conn.execute(QUERY_MARK_POSTED, (post_id,))
         self.conn.commit()
 
     def get_posts_from_query(self, query: str):
-        if self.conn == None: assert False
+        if self.conn == None:
+            assert False
         posts = []
         for row in self.conn.execute(query):
             posts.append(
@@ -335,9 +348,12 @@ class Servicer(reddit_grpc.RedditSchedulerServicer):
 def post_to_reddit(reddit: praw.Reddit, entry: rpc.PostDbEntry):
     log.info("Posting post with id %d to reddit", entry.id)
     post = entry.post
-    subreddit = reddit.subreddit(post.subreddit)
-    subreddit.submit(title=post.title, selftext=post.body, url=None)
-    log.info("Submitted post with id %d", entry.id)
+    if post.HasField("text_post"):
+        p = post.text_post
+        subreddit = reddit.subreddit(p.subreddit)
+        subreddit.submit(title=p.title, selftext=p.body, url=None)
+        log.info("Submitted post with id %d", entry.id)
+    raise ValueError(f"could not determine type of post to post to reddit: {post}")
 
 
 def simulate_post(post):
@@ -481,6 +497,6 @@ if __name__ == "__main__":
     log.info("Service started on %s", addr)
 
     server.start()
-    daemon.notify('READY=1')
+    daemon.notify("READY=1")
     server.wait_for_termination()
     db.queue_command(DbCommand(command="quit", obj=None))
