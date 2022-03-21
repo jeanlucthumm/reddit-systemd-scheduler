@@ -39,7 +39,7 @@ install: default
 uninstall:
 	rm -rf $(DESTDIR)$(default_dir)
 	rm -f $(DESTDIR)/usr/lib/systemd/user/reddit-scheduler.service
-	rm -f $(DESTDIR)/usr/share/doc/reddit-scheduler/examples/config.ini
+	rm -rf $(DESTDIR)/usr/share/doc/reddit-scheduler/
 	rm -f $(DESTDIR)/usr/bin/reddit
 
 clean:
