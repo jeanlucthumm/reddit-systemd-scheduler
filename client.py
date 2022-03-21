@@ -174,23 +174,12 @@ def print_post_info(all_posts, post_id):
 def post(config, file):
     """Schedule a reddit post.
     If FILENAME is not provided, start an interactive prompt.
-    Otherwise, FILENAME is a json file containing
+    Otherwise, FILENAME is a yaml file containing
     post information.
 
     The interactive prompt will ask for title, subreddit, body, and scheduled time.
     The body is optional, and scheduled time may contain any combination of
     date and time. Note that dates are US style: DD/MM.
-
-    The format of the json file is as follows:
-    ```
-    title: Sample title
-    subreddit: ooer
-    body: >
-        You can do multi line bodies like this
-        Or you can get rid of the '>' and do it all in line
-        Or you can leave this empty for no body
-    scheduled_time: 4/20
-    ```
     """
     rpc_post = make_post_from_cli() if file is None else make_post_from_file(file)
     if rpc_post is None:

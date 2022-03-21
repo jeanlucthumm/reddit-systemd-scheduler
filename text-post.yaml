@@ -1,0 +1,7 @@
+title: Sample title
+subreddit: test
+body: |
+    You can do multi line strings likes this
+    Or you can use '>' instead of '|' if you don't want to preserve line breaks
+    Or you can leave this empty for no body
+scheduled_time: 3/20 18:01
