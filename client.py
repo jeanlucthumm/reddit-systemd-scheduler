@@ -220,7 +220,7 @@ def post(config, file):
 
 
 @click.command()
-@click.option("-t", "--type", required=True, type=click.Choice(["text"]))
+@click.option("-t", "--type", required=True, type=click.Choice(["text", "poll"]))
 def file(type):
     """Create a sample post file of the given type."""
     try:
@@ -230,6 +230,12 @@ def file(type):
                 "text-post.yaml",
             )
             print("./text-post.yaml created.")
+        elif type == "poll":
+            shutil.copyfile(
+                "/usr/share/doc/reddit-scheduler/examples/poll-post.yaml",
+                "poll-post.yaml",
+            )
+            print("./poll-post.yaml created.")
         else:
             assert False
     except FileNotFoundError:
