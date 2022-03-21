@@ -1,0 +1,14 @@
+type: poll
+title: Sample title
+subreddit: test
+# Markdown formatted content for the submission
+selftext: ''
+# Number of days the poll should accept votes
+duration: 7
+# 2-6 poll options
+options:
+  - Yes
+  - No
+# Uses US style dates MM/DD
+# Most formats work, just try it
+scheduled_time: 3/20 18:01
