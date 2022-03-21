@@ -31,11 +31,18 @@ message Post {
 message Data {
   oneof type {
     TextPost text = 1;
+    PollPost poll = 2;
   }
 }
 
 message TextPost {
   string body = 1;
+}
+
+message PollPost {
+  string selftext = 1;
+  int32 duration = 2;
+  repeated string options = 3;
 }
 
 message PostDbEntry {
