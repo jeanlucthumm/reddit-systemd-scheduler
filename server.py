@@ -25,7 +25,7 @@ import sys
 import threading
 import time
 import time
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, List
 
 import grpc
 import praw
@@ -133,9 +133,9 @@ class DbCommand:
     def __init__(self, command: str, obj: Any):
         self.command = command
         self.obj = obj
-        self.oneshot = Queue(maxsize=1)
+        self.oneshot = Queue(maxsize=1) # type: Queue[DbReply]
 
-    # Datbase helpers
+    # Database helpers
     def reply_ok(self, obj: Any):
         self.reply(obj, False)
 
@@ -353,7 +353,8 @@ def post_to_reddit(reddit: praw.Reddit, entry: rpc.PostDbEntry):
         subreddit = reddit.subreddit(p.subreddit)
         subreddit.submit(title=p.title, selftext=p.body, url=None)
         log.info("Submitted post with id %d", entry.id)
-    raise ValueError(f"could not determine type of post to post to reddit: {post}")
+    else:
+        raise ValueError(f"could not determine type of post to post to reddit: {post}")
 
 
 def simulate_post(post):
@@ -380,7 +381,7 @@ class Poster:
         """Posts all eligible posts and marks them as posted in the datbase."""
         log.debug("Poster doing step")
         # Get the eligible posts from the database
-        eligible = []
+        eligible = []  # type: List[rpc.PostDbEntry]
         try:
             command = DbCommand("eligible", None)
             self.db.queue_command(command)
@@ -393,7 +394,7 @@ class Poster:
         log.debug("Got %d eligible posts", len(eligible))
 
         # Post everything to reddit
-        posted = []
+        posted = []  # type: List[rpc.PostDbEntry]
         for entry in eligible:
             if self.dry_run:
                 simulate_post(entry.post)
