@@ -8,6 +8,7 @@ from dateutil import parser
 import grpc
 from tabulate import tabulate
 import yaml
+from typing import List
 
 import reddit_pb2 as rpc
 import reddit_pb2_grpc as reddit_grpc
@@ -91,21 +92,19 @@ def make_post_from_cli():
         else:
             return None
 
-    post = rpc.Post()
-    post.text_post.CopyFrom(
-        rpc.TextPost(
+    return rpc.Post(
+        text_post=rpc.TextPost(
             title=title,
             subreddit=subreddit,
             body=body if body is not None else "",
             scheduled_time=int(time.timestamp()),
         )
     )
-    return post
 
 
-def make_post_from_file(file):
+def make_post_from_file(path: str) -> rpc.Post | None:
     try:
-        file = yaml.load(file, Loader=yaml.SafeLoader)
+        file = yaml.load(path, Loader=yaml.SafeLoader)
     except yaml.YAMLError as e:
         print(ERR_INVALID_POST_FILE, e)
         return None
@@ -129,29 +128,28 @@ def make_post_from_file(file):
         if input(PROMPT) != "y":
             return None
 
-    post = rpc.Post()
-    post.text_post.CopyFrom(
-        rpc.TextPost(
+    return rpc.Post(
+        text_post=rpc.TextPost(
             title=file["title"],
             subreddit=file["subreddit"],
             body=file["body"],
             scheduled_time=int(time.timestamp()),
         )
     )
-    return post
 
 
-def print_post_list(posts, filter):
+def print_post_list(posts: List[rpc.PostDbEntry], filter: str):
     rows = []
     headers = ["Id", "Scheduled Time", "Subreddit", "Title", "Posted"]
-    posts.sort(key=lambda entry: entry.post.scheduled_time, reverse=True)
+    # TODO Make this compatible with multiple post types
+    posts.sort(key=lambda entry: entry.post.text_post.scheduled_time, reverse=True)
     for entry in posts:
         if filter == "unposted" and entry.posted:
             continue
         if filter == "posted" and not entry.posted:
             continue
         row = []
-        post = entry.post
+        post = entry.post.text_post
         pretty_time = datetime.fromtimestamp(post.scheduled_time).strftime(TIME_FMT)
         row.append(entry.id)
         row.append(pretty_time)
@@ -162,7 +160,7 @@ def print_post_list(posts, filter):
     print(tabulate(rows, headers=headers))
 
 
-def print_post_info(all_posts, post_id):
+def print_post_info(all_posts: List[rpc.PostDbEntry], post_id: int):
     entry = None
     for p in all_posts:
         if p.id == post_id:
@@ -170,7 +168,8 @@ def print_post_info(all_posts, post_id):
     if entry is None:
         print(f"No post with id {post_id}.")
         return
-    post = entry.post
+    # TODO Make this compatible with multiple post types
+    post = entry.post.text_post
     rows = [
         ["Title", post.title],
         ["Subreddit", post.subreddit],
