@@ -96,13 +96,6 @@ SET posted = 1
 WHERE id == ?;
 """
 
-TEST_POST = rpc.TextPost(
-    title="Hello there",
-    subreddit="test",
-    body="sample body disregard",
-    scheduled_time=int(time.time()),
-)
-
 
 def validate_text_post(post: rpc.TextPost):
     # In proto3 unset values are equal to default values
@@ -133,7 +126,7 @@ class DbCommand:
     def __init__(self, command: str, obj: Any):
         self.command = command
         self.obj = obj
-        self.oneshot = Queue(maxsize=1) # type: Queue[DbReply]
+        self.oneshot = Queue(maxsize=1)  # type: Queue[DbReply]
 
     # Database helpers
     def reply_ok(self, obj: Any):
@@ -177,6 +170,9 @@ class Database:
         # running in the same thread
         self.conn = None  # type: Optional[sqlite3.Connection]
 
+    def adopt_connection_for_testing(self, conn: sqlite3.Connection):
+        self.conn = conn
+
     def queue_command(self, command: DbCommand):
         """Queue a command to be handled by the db later.
 
@@ -189,7 +185,10 @@ class Database:
             raise Exception("Service timeout: service may be overloaded")
 
     def start(self):
-        # Initialize
+        self.initialize()
+        self.handle_commands()
+
+    def initialize(self):
         try:
             self.conn = sqlite3.connect(self.path)
             self.conn.row_factory = sqlite3.Row
@@ -201,7 +200,9 @@ class Database:
         except Exception as e:
             raise Exception("Failed to create database table") from e
 
-        # Handle commands
+    def handle_commands(self):
+        if self.conn == None:
+            assert False
         while True:
             entry: DbCommand = self.queue.get()
             log.debug("Database handling command: %s", entry)
