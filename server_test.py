@@ -5,11 +5,15 @@ import reddit_pb2 as rpc
 from server import *
 from typing import List
 
-TEXT_POST = rpc.TextPost(
+TEXT_POST = rpc.Post(
     title="Hello there",
     subreddit="test",
-    body="sample body disregard",
     scheduled_time=int(time.time()),
+    data=rpc.Data(
+        text=rpc.TextPost(
+            body="sample body disregard",
+        )
+    ),
 )
 
 
@@ -42,15 +46,14 @@ class ServerTest(unittest.TestCase):
         rows = get_all_rows(self._conn)
         self.assertGreater(len(rows), 0)
         post = make_post_from_row(rows[0])
-        self.assertEqual(post.text_post.title, "Title")
-        self.assertEqual(post.text_post.body, "body")
+        self.assertEqual(post.title, "Title")
+        self.assertEqual(post.data.text.body, "body")
 
     def test_db_add_post(self):
         # Text post
         db = Database("")
         db.adopt_connection_for_testing(self._conn)
-        post = rpc.Post(text_post=TEXT_POST)
-        db.add_post(post)
+        db.add_post(TEXT_POST)
         rows = get_all_rows(self._conn)
         self.assertGreater(len(rows), 0)
         e = rows[0]

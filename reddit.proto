@@ -22,16 +22,20 @@ message SchedulePostReply {
 }
 
 message Post {
-  oneof post_type {
-    TextPost text_post = 1;
+  string title = 1;
+  uint64 scheduled_time = 2;
+  string subreddit = 3;
+  Data data = 4;
+}
+
+message Data {
+  oneof type {
+    TextPost text = 1;
   }
 }
 
 message TextPost {
-  string title = 1;
-  string subreddit = 2;
-  string body = 3;
-  uint64 scheduled_time = 4;
+  string body = 1;
 }
 
 message PostDbEntry {

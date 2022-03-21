@@ -97,23 +97,28 @@ WHERE id == ?;
 """
 
 
-def validate_text_post(post: rpc.TextPost):
+def validate_post(post: rpc.Post):
     # In proto3 unset values are equal to default values
     return post.title != "" and post.subreddit != "" and post.scheduled_time != 0
 
 
 def make_post_from_row(row: sqlite3.Row) -> rpc.Post:
+    post = rpc.Post(
+        title=row["title"],
+        subreddit=row["subreddit"],
+        scheduled_time=row["scheduled_time"],
+    )
     if row["type"] == "text":
-        text_post = rpc.TextPost(
-            title=row["title"],
-            subreddit=row["subreddit"],
-            body=row["body"] if not None else "",
-            scheduled_time=row["scheduled_time"],
+        post.data.CopyFrom(
+            rpc.Data(
+                text=rpc.TextPost(
+                    body=row["body"] if not None else "",
+                )
+            ),
         )
-        post = rpc.Post()
-        post.text_post.CopyFrom(text_post)
-        return post
-    assert False
+    else:
+        assert False
+    return post
 
 
 class DbCommand:
@@ -247,20 +252,19 @@ class Database:
                     )
                     entry.reply_err(ERR_INTERNAL)
 
-    def add_post(self, post: rpc.Post):
+    def add_post(self, p: rpc.Post):
         if self.conn == None:
             assert False
-        if post.HasField("text_post"):
-            p = post.text_post
-            if not validate_text_post(p):
+        if p.data.HasField("text"):
+            if not validate_post(p):
                 return "invalid post, client should not have sent this"
             self.conn.execute(
                 QUERY_INSERT_TEXT_POST,
-                (p.title, p.subreddit, p.body, p.scheduled_time, 0),
+                (p.title, p.subreddit, p.data.text.body, p.scheduled_time, 0),
             )
             self.conn.commit()
             return ""
-        raise ValueError(f"could not determine type of post to add: {post}")
+        raise ValueError(f"could not determine type of post to add: {p}")
 
     def edit_post(self, request: rpc.EditPostRequest):
         if self.conn == None:
@@ -348,14 +352,13 @@ class Servicer(reddit_grpc.RedditSchedulerServicer):
 
 def post_to_reddit(reddit: praw.Reddit, entry: rpc.PostDbEntry):
     log.info("Posting post with id %d to reddit", entry.id)
-    post = entry.post
-    if post.HasField("text_post"):
-        p = post.text_post
+    p = entry.post
+    if p.data.HasField("text"):
         subreddit = reddit.subreddit(p.subreddit)
-        subreddit.submit(title=p.title, selftext=p.body, url=None)
+        subreddit.submit(title=p.title, selftext=p.data.text.body, url=None)
         log.info("Submitted post with id %d", entry.id)
     else:
-        raise ValueError(f"could not determine type of post to post to reddit: {post}")
+        raise ValueError(f"could not determine type of post to post to reddit: {p}")
 
 
 def simulate_post(post):

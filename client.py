@@ -93,12 +93,14 @@ def make_post_from_cli():
             return None
 
     return rpc.Post(
-        text_post=rpc.TextPost(
-            title=title,
-            subreddit=subreddit,
-            body=body if body is not None else "",
-            scheduled_time=int(time.timestamp()),
-        )
+        title=title,
+        subreddit=subreddit,
+        scheduled_time=int(time.timestamp()),
+        data=rpc.Data(
+            text=rpc.TextPost(
+                body=body if body is not None else "",
+            )
+        ),
     )
 
 
@@ -129,12 +131,14 @@ def make_post_from_file(path: str) -> rpc.Post | None:
             return None
 
     return rpc.Post(
-        text_post=rpc.TextPost(
-            title=file["title"],
-            subreddit=file["subreddit"],
-            body=file["body"],
-            scheduled_time=int(time.timestamp()),
-        )
+        title=file["title"],
+        subreddit=file["subreddit"],
+        scheduled_time=int(time.timestamp()),
+        data=rpc.Data(
+            text=rpc.TextPost(
+                body=file["body"],
+            )
+        ),
     )
 
 
@@ -142,14 +146,14 @@ def print_post_list(posts: List[rpc.PostDbEntry], filter: str):
     rows = []
     headers = ["Id", "Scheduled Time", "Subreddit", "Title", "Posted"]
     # TODO Make this compatible with multiple post types
-    posts.sort(key=lambda entry: entry.post.text_post.scheduled_time, reverse=True)
+    posts.sort(key=lambda entry: entry.post.scheduled_time, reverse=True)
     for entry in posts:
         if filter == "unposted" and entry.posted:
             continue
         if filter == "posted" and not entry.posted:
             continue
         row = []
-        post = entry.post.text_post
+        post = entry.post
         pretty_time = datetime.fromtimestamp(post.scheduled_time).strftime(TIME_FMT)
         row.append(entry.id)
         row.append(pretty_time)
@@ -169,7 +173,7 @@ def print_post_info(all_posts: List[rpc.PostDbEntry], post_id: int):
         print(f"No post with id {post_id}.")
         return
     # TODO Make this compatible with multiple post types
-    post = entry.post.text_post
+    post = entry.post
     rows = [
         ["Title", post.title],
         ["Subreddit", post.subreddit],
@@ -177,7 +181,7 @@ def print_post_info(all_posts: List[rpc.PostDbEntry], post_id: int):
             "Scheduled time",
             datetime.fromtimestamp(post.scheduled_time).strftime(TIME_FMT),
         ],
-        ["Body", post.body],
+        ["Body", post.data.text.body],
     ]
     print(tabulate(rows))
 
