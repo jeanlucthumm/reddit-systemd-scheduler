@@ -1,6 +1,7 @@
 import configparser
 from datetime import datetime
 import os
+import shutil
 
 import click
 from dateutil import parser
@@ -38,6 +39,12 @@ ERR_MISSING_CONFIG = (
 
 ERR_INVALID_POST_FILE = (
     "Parsing the YAML file for the post failed with the following error:\n\n"
+)
+
+ERR_MISSING_SAMPLE_POST_FILES = (
+    "Could not find sample post files in /usr/share/doc/reddit-scheduler/.\n\n"
+    "These should have been copied over automatically as part of the installation. "
+    "Please file a bug report."
 )
 
 ERR_SAMPLE_CONFIG = "Run `reddit post --sample` to output a sample YAML post file in the current directory"
@@ -122,13 +129,15 @@ def make_post_from_file(file):
         if input(PROMPT) != "y":
             return None
 
-    post= rpc.Post()
-    post.text_post.CopyFrom(rpc.TextPost(
-        title=file["title"],
-        subreddit=file["subreddit"],
-        body=file["body"],
-        scheduled_time=int(time.timestamp()),
-    ))
+    post = rpc.Post()
+    post.text_post.CopyFrom(
+        rpc.TextPost(
+            title=file["title"],
+            subreddit=file["subreddit"],
+            body=file["body"],
+            scheduled_time=int(time.timestamp()),
+        )
+    )
     return post
 
 
@@ -186,6 +195,9 @@ def post(config, file):
     The interactive prompt will ask for title, subreddit, body, and scheduled time.
     The body is optional, and scheduled time may contain any combination of
     date and time. Note that dates are US style: DD/MM.
+
+    The command `reddit file` can be used to generate boilerplate post yaml files
+    which can be used as FILENAME.
     """
     rpc_post = make_post_from_cli() if file is None else make_post_from_file(file)
     if rpc_post is None:
@@ -202,6 +214,23 @@ def post(config, file):
                 print("Scheduled.")
     except grpc.RpcError:
         print(ERR_MISSING_SERVICE)
+
+
+@click.command()
+@click.option("-t", "--type", required=True, type=click.Choice(["text"]))
+def file(type):
+    """Create a sample post file of the given type."""
+    try:
+        if type == "text":
+            shutil.copyfile(
+                "/usr/share/doc/reddit-scheduler/examples/text-post.yaml",
+                "text-post.yaml",
+            )
+            print("./text-post.yaml created.")
+        else:
+            assert False
+    except FileNotFoundError:
+        print(ERR_MISSING_SAMPLE_POST_FILES)
 
 
 @click.command()
@@ -284,6 +313,7 @@ def main(ctx, config, port):
 
 if __name__ == "__main__":
     main.add_command(post)
+    main.add_command(file)
     main.add_command(list)
     main.add_command(delete)
     main()
