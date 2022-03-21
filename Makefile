@@ -30,11 +30,12 @@ install: default
 	install -Dm755 client.py $(DESTDIR)$(default_dir)/client.py
 	install -Dm644 *_pb2.py -t $(DESTDIR)$(default_dir)/ 
 	install -Dm644 *_pb2_grpc.py -t $(DESTDIR)$(default_dir)/ 
-	cp -r venv $(DESTDIR)$(default_dir)/
-	install -Dm644 sample-config.ini $(DESTDIR)/usr/share/doc/reddit-scheduler/examples/config.ini
-	install -Dm644 text-post.yaml $(DESTDIR)/usr/share/doc/reddit-scheduler/examples/text-post.yaml
+	install -Dm644 examples/config.ini $(DESTDIR)/usr/share/doc/reddit-scheduler/examples/config.ini
+	install -Dm644 examples/text-post.yaml $(DESTDIR)/usr/share/doc/reddit-scheduler/examples/text-post.yaml
+	install -Dm644 examples/poll-post.yaml $(DESTDIR)/usr/share/doc/reddit-scheduler/examples/poll-post.yaml
 	install -Dm644 reddit-scheduler.service $(DESTDIR)/usr/lib/systemd/user/reddit-scheduler.service
 	install -Dm755 client $(DESTDIR)/usr/bin/reddit
+	cp -r venv $(DESTDIR)$(default_dir)/
 
 uninstall:
 	rm -rf $(DESTDIR)$(default_dir)

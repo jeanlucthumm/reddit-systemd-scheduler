@@ -179,3 +179,4 @@ tags
 config.ini
 *.sqlite*
 *.pyi
+!examples/config.ini
