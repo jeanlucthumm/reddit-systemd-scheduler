@@ -8,7 +8,7 @@ from dateutil import parser
 import grpc
 from tabulate import tabulate
 import yaml
-from typing import List
+from typing import List, Any
 
 import reddit_pb2 as rpc
 import reddit_pb2_grpc as reddit_grpc
@@ -37,6 +37,8 @@ ERR_MISSING_CONFIG = (
     "Alternatively, you can specify it with the --port flag.\n\n"
     "Search path for the config file is as follows:\n"
 )
+for path in CONFIG_SEARCH_PATHS:
+    ERR_MISSING_CONFIG += f"  - {path}\n"
 
 ERR_INVALID_POST_FILE = (
     "Parsing the YAML file for the post failed with the following error:\n\n"
@@ -49,8 +51,6 @@ ERR_MISSING_SAMPLE_POST_FILES = (
 )
 
 ERR_SAMPLE_CONFIG = "Run `reddit post --sample` to output a sample YAML post file in the current directory"
-for path in CONFIG_SEARCH_PATHS:
-    ERR_MISSING_CONFIG += f"  - {path}\n"
 
 
 class Config:
@@ -104,17 +104,45 @@ def make_post_from_cli():
     )
 
 
+def verify_yaml_keys(file, keys: List[str]) -> bool:
+    for key in keys:
+        if key not in file:
+            print("YAML missing key:", key)
+            print(ERR_SAMPLE_CONFIG)
+            return False
+    return True
+
+
+def make_post_from_text_yaml(file) -> rpc.TextPost | None:
+    if not verify_yaml_keys(file, ["body"]):
+        return None
+    return rpc.TextPost(body=file["body"])
+
+
+def make_post_from_poll_yaml(file) -> rpc.PollPost | None:
+    if not verify_yaml_keys(file, ["options"]):
+        return None
+    post = rpc.PollPost(
+        options=file["options"],
+    )
+    if "selftext" in file:
+        post.selftext = file["selftext"]
+    if "duration" in file:
+        try:
+            post.duration = int(file["duration"])
+        except ValueError:
+            print("Invalid duration in YAML file: ", file["duration"])
+    return post
+
+
 def make_post_from_file(path: str) -> rpc.Post | None:
     try:
         file = yaml.load(path, Loader=yaml.SafeLoader)
     except yaml.YAMLError as e:
         print(ERR_INVALID_POST_FILE, e)
         return None
-    for key in ["title", "subreddit", "body", "scheduled_time"]:
-        if key not in file:
-            print("YAML missing key:", key)
-            print(ERR_SAMPLE_CONFIG)
-            return None
+    if not verify_yaml_keys(file, ["title", "subreddit", "type", "scheduled_time"]):
+        return
     try:
         time = parser.parse(file["scheduled_time"], dayfirst=True)
     except ValueError:
@@ -126,19 +154,33 @@ def make_post_from_file(path: str) -> rpc.Post | None:
         print("The scheduled time from the YAML file is in the past:")
         print("YAML:", time.strftime(TIME_FMT))
         print("Current: ", now.strftime(TIME_FMT))
-        print("Do you still want to continue? (y/n)")
+        print("It will be posted immediately. Do you still want to continue? (y/n)")
         if input(PROMPT) != "y":
             return None
 
+    type = file["type"]
+    data = rpc.Data()
+    p = None
+    if type == "poll":
+        p = make_post_from_poll_yaml(file)
+        if p is not None:
+            data.poll.CopyFrom(p)
+    elif type == "text":
+        p = make_post_from_text_yaml(file)
+        if p is not None:
+            data.text.CopyFrom(p)
+    else:
+        print("Unknown post type: ", type)
+        print(ERR_SAMPLE_CONFIG)
+        return None
+
+    if p is None:
+        return None
     return rpc.Post(
         title=file["title"],
         subreddit=file["subreddit"],
         scheduled_time=int(time.timestamp()),
-        data=rpc.Data(
-            text=rpc.TextPost(
-                body=file["body"],
-            )
-        ),
+        data=data,
     )
 
 
