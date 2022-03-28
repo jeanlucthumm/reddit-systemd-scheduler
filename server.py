@@ -359,10 +359,18 @@ class Servicer(reddit_grpc.RedditSchedulerServicer):
 def post_to_reddit(reddit: praw.Reddit, entry: rpc.PostDbEntry):
     log.info("Posting post with id %d to reddit", entry.id)
     p = entry.post
+    subreddit = reddit.subreddit(p.subreddit)
     if p.data.HasField("text"):
-        subreddit = reddit.subreddit(p.subreddit)
         subreddit.submit(title=p.title, selftext=p.data.text.body, url=None)
         log.info("Submitted post with id %d", entry.id)
+    elif p.data.HasField("poll"):
+        poll = p.data.poll
+        kwargs = {}
+        if poll.duration != 0:
+            kwargs["duration"] = poll.duration
+        subreddit.submit_poll(
+            title=p.title, options=list(poll.options), selftext=poll.selftext, **kwargs
+        )
     else:
         raise ValueError(f"could not determine type of post to post to reddit: {p}")
 
