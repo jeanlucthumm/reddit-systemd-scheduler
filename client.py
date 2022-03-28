@@ -50,7 +50,13 @@ ERR_MISSING_SAMPLE_POST_FILES = (
     "Please file a bug report."
 )
 
-ERR_SAMPLE_CONFIG = "Run `reddit post --sample` to output a sample YAML post file in the current directory"
+ERR_SAMPLE_CONFIG = (
+    "Run `reddit file` to output a sample YAML post file in the current directory"
+)
+
+MSG_YAML_PREF = (
+    "Note that YAML files are the preferred method of posting. See `reddit post --help`"
+)
 
 
 class Config:
@@ -59,6 +65,7 @@ class Config:
 
 
 def make_post_from_cli():
+    print(MSG_YAML_PREF)
     print("Title:")
     title = input(PROMPT).strip()
     print("Subreddit:")
@@ -234,7 +241,7 @@ def print_post_info(all_posts: List[rpc.PostDbEntry], post_id: int):
 
 
 @click.command()
-@click.option("--file", type=click.File())
+@click.option("-f", "--file", type=click.File())
 @click.pass_obj
 def post(config, file):
     """Schedule a reddit post.
@@ -244,7 +251,8 @@ def post(config, file):
 
     The interactive prompt will ask for title, subreddit, body, and scheduled time.
     The body is optional, and scheduled time may contain any combination of
-    date and time. Note that dates are US style: DD/MM.
+    date and time. Note that dates are US style: DD/MM. Non-text type posts are not
+    supported in interactive mode yet, use YAML files instead
 
     The command `reddit file` can be used to generate boilerplate post yaml files
     which can be used as FILENAME.
