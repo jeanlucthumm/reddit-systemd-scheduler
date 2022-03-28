@@ -11,4 +11,4 @@ options:
   - 'No'
 # Uses US style dates MM/DD
 # Most formats work, just try it
-scheduled_time: 3/20 18:01
+scheduled_time: '3/20 18:01'
