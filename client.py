@@ -148,6 +148,11 @@ def make_post_from_file(path: str) -> rpc.Post | None:
     except ValueError:
         print("Invalid scheduled time in YAML file:", file["scheduled_time"])
         return None
+    except TypeError:
+        print(
+            "Schedule time should be of type string, got:", type(file["scheduled_time"])
+        )
+        return None
 
     now = datetime.now()
     if time < now:
@@ -158,19 +163,19 @@ def make_post_from_file(path: str) -> rpc.Post | None:
         if input(PROMPT) != "y":
             return None
 
-    type = file["type"]
+    post_type = file["type"]
     data = rpc.Data()
     p = None
-    if type == "poll":
+    if post_type == "poll":
         p = make_post_from_poll_yaml(file)
         if p is not None:
             data.poll.CopyFrom(p)
-    elif type == "text":
+    elif post_type == "text":
         p = make_post_from_text_yaml(file)
         if p is not None:
             data.text.CopyFrom(p)
     else:
-        print("Unknown post type: ", type)
+        print("Unknown post type: ", post_type)
         print(ERR_SAMPLE_CONFIG)
         return None
 
