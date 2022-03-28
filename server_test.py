@@ -8,10 +8,23 @@ from typing import List
 TEXT_POST = rpc.Post(
     title="Hello there",
     subreddit="test",
-    scheduled_time=int(time.time()),
+    scheduled_time=1000,
     data=rpc.Data(
         text=rpc.TextPost(
-            body="sample body disregard",
+            body="sample body",
+        )
+    ),
+)
+
+POLL_POST = rpc.Post(
+    title="Poll post",
+    subreddit="testing",
+    scheduled_time=1000,
+    data=rpc.Data(
+        poll=rpc.PollPost(
+            selftext="selftext",
+            duration=2,
+            options=["option 1", "option 2"],
         )
     ),
 )
@@ -40,8 +53,10 @@ class ServerTest(unittest.TestCase):
 
     def test_make_post_from_row(self):
         # Text post
+        data = rpc.Data(text=rpc.TextPost(body="body"))
         self._conn.execute(
-            QUERY_INSERT_TEXT_POST, ("Title", "test", "body", 1647785133, 0)
+            QUERY_INSERT_POST,
+            ("text", "Title", "test", data.SerializeToString(), 1647785133, 0),
         )
         rows = get_all_rows(self._conn)
         self.assertGreater(len(rows), 0)
@@ -49,8 +64,7 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(post.title, "Title")
         self.assertEqual(post.data.text.body, "body")
 
-    def test_db_add_post(self):
-        # Text post
+    def test_db_add_text_post(self):
         db = Database("")
         db.adopt_connection_for_testing(self._conn)
         db.add_post(TEXT_POST)
@@ -59,6 +73,22 @@ class ServerTest(unittest.TestCase):
         e = rows[0]
         self.assertEqual(e["type"], "text")
         self.assertEqual(e["title"], "Hello there")
+        data = rpc.Data()
+        data.ParseFromString(e["data"])
+        self.assertEqual(data.text.body, "sample body")
+
+    def test_db_add_poll_post(self):
+        db = Database("")
+        db.adopt_connection_for_testing(self._conn)
+        db.add_post(POLL_POST)
+        rows = get_all_rows(self._conn)
+        self.assertGreater(len(rows), 0)
+        e = rows[0]
+        self.assertEqual(e["type"], "poll")
+        self.assertEqual(e["title"], "Poll post")
+        data = rpc.Data()
+        data.ParseFromString(e["data"])
+        self.assertEqual(data.poll.selftext, "selftext")
 
 
 if __name__ == "__main__":

@@ -64,15 +64,15 @@ CREATE TABLE IF NOT EXISTS Queue (
     type TEXT NOT NULL,
     title TEXT NOT NULL,
     subreddit TEXT NOT NULL,
-    body TEXT,
+    data BLOB NOT NULL,
     scheduled_time INTEGER NOT NULL,
     posted INTEGER NOT NULL
 );
 """
 
-QUERY_INSERT_TEXT_POST = """
-INSERT INTO Queue (type, title, subreddit, body, scheduled_time, posted)
-VALUES ("text", ?, ?, ?, ?, ?);
+QUERY_INSERT_POST = """
+INSERT INTO Queue (type, title, subreddit, data, scheduled_time, posted)
+VALUES (?, ?, ?, ?, ?, ?);
 """
 
 QUERY_ELIGIBLE = """
@@ -97,6 +97,7 @@ WHERE id == ?;
 """
 
 
+# TODO validate data field as well (or delegate to praw)
 def validate_post(post: rpc.Post):
     # In proto3 unset values are equal to default values
     return post.title != "" and post.subreddit != "" and post.scheduled_time != 0
@@ -108,16 +109,7 @@ def make_post_from_row(row: sqlite3.Row) -> rpc.Post:
         subreddit=row["subreddit"],
         scheduled_time=row["scheduled_time"],
     )
-    if row["type"] == "text":
-        post.data.CopyFrom(
-            rpc.Data(
-                text=rpc.TextPost(
-                    body=row["body"] if not None else "",
-                )
-            ),
-        )
-    else:
-        assert False
+    post.data.ParseFromString(row["data"])
     return post
 
 
@@ -252,19 +244,33 @@ class Database:
                     )
                     entry.reply_err(ERR_INTERNAL)
 
-    def add_post(self, p: rpc.Post):
+    def add_post(self, p: rpc.Post) -> str:
         if self.conn == None:
             assert False
+
+        data_type = ""
         if p.data.HasField("text"):
-            if not validate_post(p):
-                return "invalid post, client should not have sent this"
-            self.conn.execute(
-                QUERY_INSERT_TEXT_POST,
-                (p.title, p.subreddit, p.data.text.body, p.scheduled_time, 0),
-            )
-            self.conn.commit()
-            return ""
-        raise ValueError(f"could not determine type of post to add: {p}")
+            data_type = "text"
+        elif p.data.HasField("poll"):
+            data_type = "poll"
+        else:
+            raise ValueError(f"could not determine type of post to add: {p}")
+
+        if not validate_post(p):
+            return "invalid post, client should not have sent this"
+        self.conn.execute(
+            QUERY_INSERT_POST,
+            (
+                data_type,
+                p.title,
+                p.subreddit,
+                p.data.SerializeToString(),
+                p.scheduled_time,
+                0,
+            ),
+        )
+        self.conn.commit()
+        return ""
 
     def edit_post(self, request: rpc.EditPostRequest):
         if self.conn == None:
