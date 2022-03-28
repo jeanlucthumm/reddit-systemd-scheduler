@@ -56,7 +56,7 @@ ERR_MISSING_CONFIG = "Could not find a config file. Search path is: "
 ERR_MISSING_CONFIG += ", ".join(CONFIG_SEARCH_PATHS)
 ERR_INTERNAL = "internal error. See service logs"
 
-# TODO how do you deal with schema updates?
+# TODO how do you deal with schema updates? ==> separate table with version
 # Existing table cols will not be updated due to IF NOT EXISTS
 QUERY_CREATE_TABLE = """
 CREATE TABLE IF NOT EXISTS Queue (
