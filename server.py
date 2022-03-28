@@ -484,6 +484,12 @@ if __name__ == "__main__":
         sys.exit(1)
     general = config["General"]
 
+    # Check for debugging
+    if "Debug" in general and general["Debug"]:
+        log.info("Debug logging enabled")
+        stdout_handler.setLevel(logging.DEBUG)
+        log.setLevel(logging.DEBUG)
+
     # Start database
     db = Database(os.environ["DB_PATH"])
     threading.Thread(target=database_thread, args=(db,)).start()
