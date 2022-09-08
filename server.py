@@ -41,10 +41,13 @@ LOCK_TIMEOUT = 10  # seconds
 log = logging.getLogger()
 log.addHandler(journal.JournalHandler())
 stdout_handler = logging.StreamHandler(sys.stdout)
-stdout_handler.setLevel(LOG_LEVEL)
 if os.environ.get("LOG_STDOUT"):
     log.addHandler(stdout_handler)
-log.setLevel(LOG_LEVEL)
+
+def set_debug_level(level):
+    stdout_handler.setLevel(level)
+    log.setLevel(level)
+
 
 CONFIG_SEARCH_PATHS = [
     os.environ.get("CONFIG_PATH"),
@@ -487,6 +490,7 @@ def is_valid_config(config: ConfigParser):
 
 
 if __name__ == "__main__":
+    set_debug_level(logging.INFO)
     config = get_config()
     if config is None or not is_valid_config(config):
         sys.exit(1)
@@ -495,8 +499,7 @@ if __name__ == "__main__":
     # Check for debugging
     if "Debug" in general and general["Debug"]:
         log.info("Debug logging enabled")
-        stdout_handler.setLevel(logging.DEBUG)
-        log.setLevel(logging.DEBUG)
+        set_debug_level(logging.DEBUG)
 
     # Start database
     db = Database(os.environ["DB_PATH"])
