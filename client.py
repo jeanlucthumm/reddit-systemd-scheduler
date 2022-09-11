@@ -285,17 +285,10 @@ def print_post_info(all_posts: List[rpc.PostDbEntry], post_id: int):
 @click.pass_obj
 def post(config, file):
     """Schedule a reddit post.
-    If FILENAME is not provided, start an interactive prompt.
-    Otherwise, FILENAME is a yaml file containing
-    post information.
 
-    The interactive prompt will ask for title, subreddit, body, and scheduled time.
-    The body is optional, and scheduled time may contain any combination of
-    date and time. Note that dates are US style: DD/MM. Non-text type posts are not
-    supported in interactive mode yet, use YAML files instead
-
-    The command `reddit file` can be used to generate boilerplate post yaml files
-    which can be used as FILENAME.
+    Default behavior is an interactive CLI. If FILENAME is provided, then post
+    information will be sourced from there. Use `reddit file` to generate
+    boilerplate post yaml files which can be filled in.
     """
     rpc_post = make_post_from_cli() if file is None else make_post_from_file(file)
     if rpc_post is None:
