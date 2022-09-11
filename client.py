@@ -1,14 +1,15 @@
 import configparser
-from datetime import datetime
 import os
 import shutil
+from datetime import datetime
 
 import click
-from dateutil import parser
 import grpc
-from tabulate import tabulate
 import yaml
-from typing import List, Any
+import questionary
+from dateutil import parser
+from tabulate import tabulate
+from typing import List, Literal, TypeAlias
 
 import reddit_pb2 as rpc
 import reddit_pb2_grpc as reddit_grpc
@@ -58,57 +59,96 @@ MSG_YAML_PREF = (
     "Note that YAML files are the preferred method of posting. See `reddit post --help`"
 )
 
+PostType: TypeAlias = Literal["text", "poll"]
+
 
 class Config:
     def __init__(self, port):
         self.port = port
 
 
-def make_post_from_cli():
-    print(MSG_YAML_PREF)
-    print("Title:")
-    title = input(PROMPT).strip()
-    print("Subreddit:")
-    subreddit = input(PROMPT + "r/")
-    input(PROMPT + "Press any key to launch editor for post body...")
-    body = click.edit(MSG_BODY_EDITOR)
-    while True:
-        print("Post time (US style):")
-        time_input = input(PROMPT)
-        try:
-            time = parser.parse(time_input, dayfirst=False)
-        except ValueError:
-            print("Could not parse time:", time_input)
-            return None
+def validate_time(time_input: str) -> str | Literal[True]:
+    try:
+        time = parser.parse(time_input, dayfirst=False)
+    except ValueError:
+        return "Invalid time"
+    now = datetime.now()
+    if time < now:
+        return "Time is in the past: " + time.strftime(TIME_FMT)
+    return True
 
-        now = datetime.now()
-        if time > now:
-            break
 
-        print(
-            "The time you entered is in the past, so the service will post immediately:"
+def validate_poll_duration(duration: str) -> str | Literal[True]:
+    try:
+        int(duration)
+    except ValueError:
+        return "Invalid duration"
+    return True
+
+
+def make_post_from_cli() -> rpc.Post | None:
+    subreddit = questionary.text("Subreddit:").ask()
+    if subreddit is None:
+        return
+    subreddit = subreddit.strip()
+
+    title = questionary.text("Title:").ask()
+    if title is None:
+        return
+    title = title.strip()
+
+    type: PostType = questionary.select("Type of post:", choices=["text", "poll"]).ask()
+    if type is None:
+        return
+
+    data = None
+    if type == "text":
+        body: str = questionary.text("Body:", multiline=True).ask()
+        if body is None:
+            return
+
+        data = rpc.Data(text=rpc.TextPost(body=body))
+    elif type == "poll":
+        raw_options: str = questionary.text(
+            "Options:", instruction="(Separate options by comma)"
+        ).ask()
+        if raw_options is None:
+            return
+        options = [x.strip() for x in raw_options.split(",")]
+
+        selftext: str = questionary.text("Text content if any:", multiline=True).ask()
+        if selftext is None:
+            return
+
+        duration = questionary.text(
+            "Duration:",
+            instruction="(Number of days poll should accept votes)",
+            validate=validate_poll_duration,
+        ).ask()
+        if duration is None:
+            return
+        duration = int(duration)
+
+        data = rpc.Data(
+            poll=rpc.PollPost(selftext=selftext, duration=duration, options=options)
         )
-        print("Entered:", time.strftime(TIME_FMT))
-        print("Current: ", now.strftime(TIME_FMT))
-        print("Do you want to continue (c), enter a new time (t), or exit (e)? (c/t/e)")
-        response = input(PROMPT)
-        if response == "c":
-            break
-        elif response == "t":
-            continue
-        else:
-            return None
 
-    return rpc.Post(
+    time = questionary.text(
+        "Post time:",
+        instruction="(Most formats work, dates are US style)",
+        validate=validate_time,
+    ).ask()
+    if time is None:
+        return
+    time = parser.parse(time)
+    post = rpc.Post(
         title=title,
         subreddit=subreddit,
         scheduled_time=int(time.timestamp()),
-        data=rpc.Data(
-            text=rpc.TextPost(
-                body=body if body is not None else "",
-            )
-        ),
+        data=data,
     )
+    print(post)  # DEBUG
+    return post
 
 
 def verify_yaml_keys(file, keys: List[str]) -> bool:
