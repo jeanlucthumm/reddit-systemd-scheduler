@@ -310,7 +310,10 @@ def post(config, file):
 @click.command()
 @click.option("-t", "--type", required=True, type=click.Choice(["text", "poll"]))
 def file(type):
-    """Create a sample post file of the given type."""
+    """Create a sample post file of the given type.
+
+    These can be filled in and then used with `reddit post -f FILENAME`.
+    """
     try:
         if type == "text":
             shutil.copyfile(
