@@ -68,3 +68,7 @@ Now you're free to use the CLI to schedule posts and such. Try running this firs
 ```
 reddit --help
 ```
+The main command is
+```
+reddit post
+```
