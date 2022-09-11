@@ -379,7 +379,7 @@ def post_to_reddit(reddit: praw.Reddit, entry: rpc.PostDbEntry):
 
 
 def simulate_post(post):
-    log.debug("Would've posted: %s", post)
+    log.info("Would've posted: %s", post)
 
 
 class Poster:
