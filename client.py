@@ -16,7 +16,6 @@ import reddit_pb2_grpc as reddit_grpc
 
 PROMPT = "> "
 TIME_FMT = "%m/%d/%Y %I:%M %p"
-MSG_BODY_EDITOR = "Replace this with post body and save, or quit editor for empty body"
 
 CONFIG_SEARCH_PATHS = [
     os.path.expandvars("$HOME/.config/reddit-scheduler/config.ini"),
@@ -53,10 +52,6 @@ ERR_MISSING_SAMPLE_POST_FILES = (
 
 ERR_SAMPLE_CONFIG = (
     "Run `reddit file` to output a sample YAML post file in the current directory"
-)
-
-MSG_YAML_PREF = (
-    "Note that YAML files are the preferred method of posting. See `reddit post --help`"
 )
 
 PostType: TypeAlias = Literal["text", "poll"]
