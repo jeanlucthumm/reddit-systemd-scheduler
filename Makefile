@@ -19,6 +19,9 @@ proto:
 start:
 	systemctl --user restart reddit-scheduler
 
+stop:
+	systemctl --user stop reddit-scheduler
+
 status:
 	systemctl --user status reddit-scheduler
 
