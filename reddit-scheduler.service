@@ -5,3 +5,6 @@ Description=Reddit post scheduler
 Environment=CONFIG_PATH=%h/.config/reddit-scheduler/config.ini
 Environment=DB_PATH=%h/.config/reddit-scheduler/database.sqlite
 ExecStart=/opt/reddit-scheduler/venv/bin/python /opt/reddit-scheduler/server.py
+
+[Install]
+WantedBy=default.target
