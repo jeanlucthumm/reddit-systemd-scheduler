@@ -48,3 +48,5 @@ uninstall:
 
 clean:
 	rm -rf *_pb2.py *_pb2_grpc.py venv
+
+.PHONY: default proto start stop status reload install uninstall clean
