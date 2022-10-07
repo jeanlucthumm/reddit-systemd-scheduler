@@ -17,6 +17,7 @@ DB_PATH:        Sets the path to the database to use. Creates new database if no
 from concurrent import futures
 from configparser import ConfigParser
 import logging
+from praw.exceptions import RedditAPIException
 import os
 from queue import Queue
 import queue
@@ -43,6 +44,7 @@ log.addHandler(journal.JournalHandler())
 stdout_handler = logging.StreamHandler(sys.stdout)
 if os.environ.get("LOG_STDOUT"):
     log.addHandler(stdout_handler)
+
 
 def set_debug_level(level):
     stdout_handler.setLevel(level)
@@ -424,8 +426,11 @@ class Poster:
                 try:
                     post_to_reddit(self.reddit, entry)
                     posted.append(entry)
-                except:
-                    log.exception("Failed to post post with id %d", entry.id)
+                except RedditAPIException as e:
+                    msg = f"Failed to post post with id {entry.id}:"
+                    for sube in e.items:
+                        msg += f"\n-> {sube.error_type}: {sube.message or ''}"
+                    log.error(msg)
 
         # Tell database which posts we posted
         for entry in posted:
