@@ -93,11 +93,14 @@ class ServerTest(unittest.TestCase):
     def test_db_mark_error(self):
         db = Database("")
         db.adopt_connection_for_testing(self._conn)
-        db.add_post(POLL_POST)
+
+        db.queue_command(DbCommand("post", POLL_POST))
+        db.step()
 
         e = get_all_rows(self._conn)[0]
-        err = "random error\nwith newline" 
-        db.mark_error(e["id"], err)
+        err = "random error\nwith newline"
+        db.queue_command(DbCommand("mark_error", ObjMarkError(e["id"], err)))
+        db.step()
 
         e = get_all_rows(self._conn)[0]
         self.assertEqual(e["error"], err)

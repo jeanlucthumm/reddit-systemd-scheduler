@@ -217,61 +217,66 @@ class Database:
         except Exception as e:
             raise Exception("Failed to create database table") from e
 
-    def handle_commands(self):
+    def step(self) -> bool:
         if self.conn == None:
             assert False
-        while True:
-            entry: DbCommand = self.queue.get()
-            log.debug("Database handling command: %s", entry)
-            command = entry.command
-            if command == "quit":
-                log.debug("Stopping database")
-                self.conn.close()
-                break
-            elif command == "post":
-                try:
-                    msg = self.add_post(entry.obj)
-                    entry.reply(msg, msg != "")
-                except:
-                    log.exception("Failed to insert post into database:\n%s", entry.obj)
-                    entry.reply_err(ERR_INTERNAL)
-            elif command == "eligible":
-                try:
-                    posts = self.get_posts_from_query(QUERY_ELIGIBLE)
-                    entry.reply(posts, posts == None)
-                except:
-                    log.exception("Failed to get eligible posts")
-                    entry.reply_err(ERR_INTERNAL)
-            elif command == "all":
-                try:
-                    all = self.get_posts_from_query(QUERY_ALL)
-                    entry.reply(all, all == None)
-                except:
-                    log.exception("Failed to get all posts")
-                    entry.reply_err(ERR_INTERNAL)
-            elif command == "edit":
-                try:
-                    entry.reply_ok(self.edit_post(entry.obj))
-                except:
-                    log.exception("Failed to edit post")
-                    entry.reply_err(ERR_INTERNAL)
-            elif command == "mark_posted":
-                try:
-                    entry.reply_ok(self.mark_posted(entry.obj))
-                except:
-                    log.exception("Failed to mark post with id %d as posted", entry.obj)
-                    entry.reply_err(ERR_INTERNAL)
-            elif command == "mark_error":
-                obj = cast(ObjMarkError, entry.obj)
-                try:
-                    entry.reply_ok(self.mark_error(obj.id, obj.err))
-                except:
-                    log.exception(
-                        "Failed to mark post with id %d as error %s",
-                        obj.id,
-                        obj.err,
-                    )
-                    entry.reply_err(ERR_INTERNAL)
+        entry: DbCommand = self.queue.get()
+        log.debug("Database handling command: %s", entry)
+        command = entry.command
+        if command == "quit":
+            log.debug("Stopping database")
+            self.conn.close()
+            return False
+        elif command == "post":
+            try:
+                msg = self.add_post(entry.obj)
+                entry.reply(msg, msg != "")
+            except:
+                log.exception("Failed to insert post into database:\n%s", entry.obj)
+                entry.reply_err(ERR_INTERNAL)
+        elif command == "eligible":
+            try:
+                posts = self.get_posts_from_query(QUERY_ELIGIBLE)
+                entry.reply(posts, posts == None)
+            except:
+                log.exception("Failed to get eligible posts")
+                entry.reply_err(ERR_INTERNAL)
+        elif command == "all":
+            try:
+                all = self.get_posts_from_query(QUERY_ALL)
+                entry.reply(all, all == None)
+            except:
+                log.exception("Failed to get all posts")
+                entry.reply_err(ERR_INTERNAL)
+        elif command == "edit":
+            try:
+                entry.reply_ok(self.edit_post(entry.obj))
+            except:
+                log.exception("Failed to edit post")
+                entry.reply_err(ERR_INTERNAL)
+        elif command == "mark_posted":
+            try:
+                entry.reply_ok(self.mark_posted(entry.obj))
+            except:
+                log.exception("Failed to mark post with id %d as posted", entry.obj)
+                entry.reply_err(ERR_INTERNAL)
+        elif command == "mark_error":
+            obj = cast(ObjMarkError, entry.obj)
+            try:
+                entry.reply_ok(self.mark_error(obj.id, obj.err))
+            except:
+                log.exception(
+                    "Failed to mark post with id %d as error %s",
+                    obj.id,
+                    obj.err,
+                )
+                entry.reply_err(ERR_INTERNAL)
+        return True
+
+
+    def handle_commands(self):
+        while self.step():
+            pass
 
     def add_post(self, p: rpc.Post) -> str:
         if self.conn == None:
