@@ -45,9 +45,16 @@ message PollPost {
   repeated string options = 3;
 }
 
+enum PostStatus {
+  UNKNOWN = 0;
+  PENDING = 1;
+  POSTED = 2;
+  ERROR = 3;
+}
+
 message PostDbEntry {
   int32 id = 1;
-  bool posted = 2;
+  PostStatus status = 2;
   Post post = 3;
 }
 

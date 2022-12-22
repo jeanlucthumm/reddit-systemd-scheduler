@@ -26,7 +26,7 @@ import sys
 import threading
 import time
 import time
-from typing import Any, Callable, Optional, List
+from typing import Any, Callable, Optional, List, cast
 
 import grpc
 import praw
@@ -71,7 +71,8 @@ CREATE TABLE IF NOT EXISTS Queue (
     subreddit TEXT NOT NULL,
     data BLOB NOT NULL,
     scheduled_time INTEGER NOT NULL,
-    posted INTEGER NOT NULL
+    posted INTEGER NOT NULL,
+    error TEXT
 );
 """
 
@@ -98,6 +99,12 @@ WHERE id == ?;
 QUERY_MARK_POSTED = """
 UPDATE Queue
 SET posted = 1
+WHERE id == ?;
+"""
+
+QUERY_MARK_ERROR = """
+UPDATE Queue
+SET error = ?
 WHERE id == ?;
 """
 
@@ -160,6 +167,14 @@ class DbReply:
             return f"Err({self.obj})"
         else:
             return f"Ok({self.obj})"
+
+
+class ObjMarkError:
+    """Obj included in a mark_error DbCommand."""
+
+    def __init__(self, id: int, err: str) -> None:
+        self.id = id
+        self.err = err
 
 
 class Database:
@@ -244,8 +259,17 @@ class Database:
                 try:
                     entry.reply_ok(self.mark_posted(entry.obj))
                 except:
+                    log.exception("Failed to mark post with id %d as posted", entry.obj)
+                    entry.reply_err(ERR_INTERNAL)
+            elif command == "mark_error":
+                obj = cast(ObjMarkError, entry.obj)
+                try:
+                    entry.reply_ok(self.mark_error(obj.id, obj.err))
+                except:
                     log.exception(
-                        "Failed to mark post with id %d as posted", entry.obj.id
+                        "Failed to mark post with id %d as error %s",
+                        obj.id,
+                        obj.err,
                     )
                     entry.reply_err(ERR_INTERNAL)
 
@@ -292,14 +316,27 @@ class Database:
         self.conn.execute(QUERY_MARK_POSTED, (post_id,))
         self.conn.commit()
 
+    def mark_error(self, post_id: int, err: str):
+        if self.conn == None:
+            assert False
+        self.conn.execute(QUERY_MARK_ERROR, (post_id, err))
+        self.conn.commit()
+
     def get_posts_from_query(self, query: str):
         if self.conn == None:
             assert False
         posts = []
         for row in self.conn.execute(query):
+            status = rpc.PostStatus.UNKNOWN
+            if row["error"] is not None:
+                status = rpc.PostStatus.ERROR
+            elif row["posted"]:
+                status = rpc.PostStatus.POSTED
+            else:
+                status = rpc.PostStatus.PENDING
             posts.append(
                 rpc.PostDbEntry(
-                    id=row["id"], posted=row["posted"], post=make_post_from_row(row)
+                    id=row["id"], status=status, post=make_post_from_row(row)
                 )
             )
         return posts
@@ -431,6 +468,8 @@ class Poster:
                     for sube in e.items:
                         msg += f"\n-> {sube.error_type}: {sube.message or ''}"
                     log.error(msg)
+                    command = DbCommand("mark_error", ObjMarkError(entry.id, msg))
+                    self.db.queue_command(command)
 
         # Tell database which posts we posted
         for entry in posted:
