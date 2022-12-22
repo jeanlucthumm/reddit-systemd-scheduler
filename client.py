@@ -231,15 +231,27 @@ def make_post_from_file(path: str) -> rpc.Post | None:
     )
 
 
+def status_to_string(status: rpc.PostStatus.ValueType) -> str:
+    if status == rpc.PostStatus.PENDING:
+        return "Pending"
+    elif status == rpc.PostStatus.ERROR:
+        return "Error"
+    elif status == rpc.PostStatus.POSTED:
+        return "Posted"
+    else:
+        return "Unknown"
+
+
 def print_post_list(posts: List[rpc.PostDbEntry], filter: str):
+    banner = None
     rows = []
-    headers = ["Id", "Scheduled Time", "Subreddit", "Title", "Posted"]
+    headers = ["Id", "Scheduled Time", "Subreddit", "Title", "Status"]
     # TODO Make this compatible with multiple post types
     posts.sort(key=lambda entry: entry.post.scheduled_time, reverse=True)
     for entry in posts:
-        if filter == "unposted" and entry.posted:
+        if filter == "unposted" and entry.status == rpc.PostStatus.POSTED:
             continue
-        if filter == "posted" and not entry.posted:
+        if filter == "posted" and not entry.status == rpc.PostStatus.POSTED:
             continue
         row = []
         post = entry.post
@@ -248,7 +260,7 @@ def print_post_list(posts: List[rpc.PostDbEntry], filter: str):
         row.append(pretty_time)
         row.append(post.subreddit)
         row.append(post.title)
-        row.append(entry.posted)
+        row.append(status_to_string(entry.status))
         rows.append(row)
     print(tabulate(rows, headers=headers))
 
@@ -262,6 +274,7 @@ def print_post_info(all_posts: List[rpc.PostDbEntry], post_id: int):
         print(f"No post with id {post_id}.")
         return
     # TODO Make this compatible with multiple post types
+    # TODO Error details
     post = entry.post
     rows = [
         ["Title", post.title],
