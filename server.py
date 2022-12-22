@@ -193,7 +193,7 @@ class Database:
     def queue_command(self, command: DbCommand):
         """Queue a command to be handled by the db later.
 
-        This may block if the queue buffer if full and errors after LOCK_TIMEOUT.
+        This may block if the queue buffer is full and errors after LOCK_TIMEOUT.
         """
         log.debug("Database queued command: %s", command)
         try:
@@ -319,7 +319,7 @@ class Database:
     def mark_error(self, post_id: int, err: str):
         if self.conn == None:
             assert False
-        self.conn.execute(QUERY_MARK_ERROR, (post_id, err))
+        self.conn.execute(QUERY_MARK_ERROR, (err, post_id))
         self.conn.commit()
 
     def get_posts_from_query(self, query: str):

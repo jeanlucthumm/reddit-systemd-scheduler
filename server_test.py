@@ -90,6 +90,18 @@ class ServerTest(unittest.TestCase):
         data.ParseFromString(e["data"])
         self.assertEqual(data.poll.selftext, "selftext")
 
+    def test_db_mark_error(self):
+        db = Database("")
+        db.adopt_connection_for_testing(self._conn)
+        db.add_post(POLL_POST)
+
+        e = get_all_rows(self._conn)[0]
+        err = "random error\nwith newline" 
+        db.mark_error(e["id"], err)
+
+        e = get_all_rows(self._conn)[0]
+        self.assertEqual(e["error"], err)
+
 
 if __name__ == "__main__":
     unittest.main()
