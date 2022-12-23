@@ -54,8 +54,9 @@ enum PostStatus {
 
 message PostDbEntry {
   int32 id = 1;
-  PostStatus status = 2;
-  Post post = 3;
+  Post post = 2;
+  PostStatus status = 3;
+  string error = 4;
 }
 
 message EditPostRequest {

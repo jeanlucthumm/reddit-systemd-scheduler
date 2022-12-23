@@ -10,6 +10,7 @@ import questionary
 from dateutil import parser
 from tabulate import tabulate
 from typing import List, Literal, TypeAlias
+from colored import fg, attr
 
 import reddit_pb2 as rpc
 import reddit_pb2_grpc as reddit_grpc
@@ -244,13 +245,15 @@ def status_to_string(status) -> str:
 def print_post_list(posts: List[rpc.PostDbEntry], filter: str):
     rows = []
     headers = ["Id", "Scheduled Time", "Subreddit", "Title", "Status"]
-    # TODO Make this compatible with multiple post types
     posts.sort(key=lambda entry: entry.post.scheduled_time, reverse=True)
+    error_id = None
     for entry in posts:
         if filter == "unposted" and entry.status == rpc.PostStatus.POSTED:
             continue
         if filter == "posted" and not entry.status == rpc.PostStatus.POSTED:
             continue
+        if entry.status == rpc.PostStatus.ERROR and error_id is None:
+            error_id = entry.id
         row = []
         post = entry.post
         pretty_time = datetime.fromtimestamp(post.scheduled_time).strftime(TIME_FMT)
@@ -261,6 +264,9 @@ def print_post_list(posts: List[rpc.PostDbEntry], filter: str):
         row.append(status_to_string(entry.status))
         rows.append(row)
     print(tabulate(rows, headers=headers))
+    print()
+    if error_id is not None:
+        print(f"A post errored, use `reddit list -p {error_id}` to see why")
 
 
 def print_post_info(all_posts: List[rpc.PostDbEntry], post_id: int):
@@ -271,8 +277,6 @@ def print_post_info(all_posts: List[rpc.PostDbEntry], post_id: int):
     if entry is None:
         print(f"No post with id {post_id}.")
         return
-    # TODO Make this compatible with multiple post types
-    # TODO Error details
     post = entry.post
     rows = [
         ["Title", post.title],
@@ -281,9 +285,22 @@ def print_post_info(all_posts: List[rpc.PostDbEntry], post_id: int):
             "Scheduled time",
             datetime.fromtimestamp(post.scheduled_time).strftime(TIME_FMT),
         ],
-        ["Body", post.data.text.body],
     ]
+    if post.data.HasField("text"):
+        rows.append(["Body", post.data.text.body])
+    if post.data.HasField("poll"):
+        poll = post.data.poll
+        rows += [
+            ["Selftext", poll.selftext],
+            ["Duration", poll.duration],
+        ]
+        opt_text = ""
+        for opt in poll.options:
+            opt_text += f"-- {opt}\n"
+        rows.append(["Options", opt_text])
     print(tabulate(rows))
+    if entry.status == rpc.PostStatus.ERROR:
+        print(f"{fg('red')}Posting failed with error:\n{entry.error}{attr('reset')}")
 
 
 @click.command()

@@ -4,6 +4,7 @@ chardet==4.0.0
 charset-normalizer==2.0.12
 click==8.0.4
 colorclass==2.2.2
+colored==1.4.4
 docopt==0.6.2
 grpcio==1.44.0
 grpcio-tools==1.44.0

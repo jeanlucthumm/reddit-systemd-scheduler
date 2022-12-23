@@ -332,15 +332,20 @@ class Database:
         posts = []
         for row in self.conn.execute(query):
             status = rpc.PostStatus.UNKNOWN
+            error = ""
             if row["error"] is not None:
                 status = rpc.PostStatus.ERROR
+                error = row["error"]
             elif row["posted"]:
                 status = rpc.PostStatus.POSTED
             else:
                 status = rpc.PostStatus.PENDING
             posts.append(
                 rpc.PostDbEntry(
-                    id=row["id"], status=status, post=make_post_from_row(row)
+                    id=row["id"],
+                    post=make_post_from_row(row),
+                    status=status,
+                    error=error,
                 )
             )
         return posts
@@ -469,10 +474,11 @@ class Poster:
                     posted.append(entry)
                 except RedditAPIException as e:
                     msg = f"Failed to post post with id {entry.id}:"
+                    report = []
                     for sube in e.items:
-                        msg += f"\n-> {sube.error_type}: {sube.message or ''}"
-                    log.error(msg)
-                    command = DbCommand("mark_error", ObjMarkError(entry.id, msg))
+                        report.append(f"-> {sube.error_type}: {sube.message or ''}")
+                    log.error("\n".join([msg] + report))
+                    command = DbCommand("mark_error", ObjMarkError(entry.id, "\n".join(report)))
                     self.db.queue_command(command)
 
         # Tell database which posts we posted
