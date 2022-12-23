@@ -273,7 +273,6 @@ class Database:
                 entry.reply_err(ERR_INTERNAL)
         return True
 
-
     def handle_commands(self):
         while self.step():
             pass
@@ -395,7 +394,7 @@ class Servicer(reddit_grpc.RedditSchedulerServicer):
             )
             return reply_handler(ERR_INTERNAL, None)
         except:
-            log.exception("Error handling %s RPC with request:\n%s", request)
+            log.exception("Error handling %s RPC with request:\n%s", rpc_name, request)
             return reply_handler(ERR_INTERNAL, None)
 
     def link_database(self, db):

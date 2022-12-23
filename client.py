@@ -142,7 +142,6 @@ def make_post_from_cli() -> rpc.Post | None:
         scheduled_time=int(time.timestamp()),
         data=data,
     )
-    print(post)  # DEBUG
     return post
 
 
@@ -231,7 +230,7 @@ def make_post_from_file(path: str) -> rpc.Post | None:
     )
 
 
-def status_to_string(status: rpc.PostStatus.ValueType) -> str:
+def status_to_string(status) -> str:
     if status == rpc.PostStatus.PENDING:
         return "Pending"
     elif status == rpc.PostStatus.ERROR:
@@ -243,7 +242,6 @@ def status_to_string(status: rpc.PostStatus.ValueType) -> str:
 
 
 def print_post_list(posts: List[rpc.PostDbEntry], filter: str):
-    banner = None
     rows = []
     headers = ["Id", "Scheduled Time", "Subreddit", "Title", "Status"]
     # TODO Make this compatible with multiple post types
