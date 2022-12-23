@@ -14,7 +14,7 @@ pip-upgrader==1.4.15
 praw==7.5.0
 prawcore==2.3.0
 prompt-toolkit==3.0.31
-protobuf==3.19.4
+protobuf==3.19.5
 Pygments==2.13.0
 pyinstaller==4.10
 pyinstaller-hooks-contrib==2022.2
