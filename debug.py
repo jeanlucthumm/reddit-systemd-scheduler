@@ -1,7 +1,9 @@
+from configparser import ConfigParser
 import sqlite3
 import os
 import sys
 import reddit_pb2 as rpc
+import praw
 
 
 def dump():
@@ -16,6 +18,19 @@ def dump():
         )
         post.data.ParseFromString(row["data"])
         print(post)
+
+def reddit_instance():
+    parser = ConfigParser()
+    parser.read(os.path.expandvars("$HOME/.config/reddit-scheduler/config.ini"))
+
+    cfg = parser["RedditAPI"]
+    return praw.Reddit(
+        client_id=cfg["ClientId"],
+        client_secret=cfg["ClientSecret"],
+        password=cfg["Password"],
+        username=cfg["Username"],
+        user_agent=f"desktop:{cfg['ClientId']}:v0.0.1  (by u/{cfg['Username']})",
+    )
 
 
 FUNC_MAP = {"dump": dump}
