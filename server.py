@@ -426,6 +426,14 @@ def post_to_reddit(reddit: praw.Reddit, entry: rpc.PostDbEntry):
         raise ValueError(f"could not determine type of post to post to reddit: {p}")
 
 
+def flairs_for_subdreddit(reddit: praw.Reddit, subreddit: str) -> List[rpc.Flair]:
+    sub = reddit.subreddit(subreddit)
+    flairs = [
+        f for f in sub.flair.link_templates.user_selectable() if f["flair_text"] != ""
+    ]
+    return [rpc.Flair(text=f["flair_text"], id=f["id"]) for f in flairs]
+
+
 def simulate_post(post):
     log.info("Would've posted: %s", post)
 

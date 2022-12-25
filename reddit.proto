@@ -21,6 +21,11 @@ message SchedulePostReply {
   string error_msg = 1;
 }
 
+message Flair {
+  string text = 1;
+  string id = 2;
+}
+
 message Post {
   string title = 1;
   uint64 scheduled_time = 2;
