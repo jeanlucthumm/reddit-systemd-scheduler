@@ -5,6 +5,8 @@ package reddit_scheduler;
 service RedditScheduler {
   rpc ListPosts(ListPostsRequest) returns (ListPostsReply) {}
 
+  rpc ListFlairs(ListFlairsRequest) returns (ListFlairsResponse) {}
+
   rpc SchedulePost(Post) returns (SchedulePostReply) {}
 
   rpc EditPost(EditPostRequest) returns (EditPostReply) {}
@@ -15,6 +17,14 @@ message ListPostsRequest {}
 message ListPostsReply {
   repeated PostDbEntry posts = 1;
   string error_msg = 2;
+}
+
+message ListFlairsRequest {
+  string subreddit = 1;
+}
+
+message ListFlairsResponse {
+  repeated Flair flairs = 1;
 }
 
 message SchedulePostReply {
@@ -31,6 +41,7 @@ message Post {
   uint64 scheduled_time = 2;
   string subreddit = 3;
   Data data = 4;
+  string flair_id = 5;
 }
 
 message Data {

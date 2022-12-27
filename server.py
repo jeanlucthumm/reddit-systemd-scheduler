@@ -26,7 +26,7 @@ import sys
 import threading
 import time
 import time
-from typing import Any, Callable, Optional, List, cast
+from typing import Any, Callable, Dict, Optional, List, cast
 
 import grpc
 import praw
@@ -362,6 +362,19 @@ class Servicer(reddit_grpc.RedditSchedulerServicer):
             lambda msg, obj: rpc.ListPostsReply(error_msg=msg, posts=obj),
         )
 
+    def ListFlairs(self, request, _):
+        flairs = []
+        try:
+            reddit = get_reddit(self.reddit_config)
+            return rpc.ListFlairsResponse(
+                flairs=flairs_for_subdreddit(reddit, request.subreddit)
+            )
+        except Exception as e:
+            log.error(
+                f"Recovering from ListFlairs error for subreddit {request.subreddit}:\n{str(e)}"
+            )
+        return rpc.ListFlairsResponse(flairs=flairs)
+
     def SchedulePost(self, request, _):
         return self.database_op(
             DbCommand("post", request),
@@ -406,6 +419,10 @@ class Servicer(reddit_grpc.RedditSchedulerServicer):
         self.db = db
         return self
 
+    def set_reddit_config(self, reddit_config):
+        self.reddit_config = reddit_config
+        return self
+
 
 def post_to_reddit(reddit: praw.Reddit, entry: rpc.PostDbEntry):
     log.info("Posting post with id %d to reddit", entry.id)
@@ -438,21 +455,23 @@ def simulate_post(post):
     log.info("Would've posted: %s", post)
 
 
+def get_reddit(cfg):
+    return praw.Reddit(
+        client_id=cfg["ClientId"],
+        client_secret=cfg["ClientSecret"],
+        password=cfg["Password"],
+        username=cfg["Username"],
+        user_agent=f"desktop:{cfg['ClientId']}:v0.0.1  (by u/{cfg['Username']})",
+    )
+
+
 class Poster:
     """Routinely checks if any posts are eligible to be posted and then posts them to Reddit."""
 
     def __init__(self, reddit_config, dry_run: bool = True, step_interval: float = 5):
         self.dry_run = dry_run
         self.step_interval = step_interval
-
-        cfg = reddit_config
-        self.reddit = praw.Reddit(
-            client_id=cfg["ClientId"],
-            client_secret=cfg["ClientSecret"],
-            password=cfg["Password"],
-            username=cfg["Username"],
-            user_agent=f"desktop:{cfg['ClientId']}:v0.0.1  (by u/{cfg['Username']})",
-        )
+        self.reddit = get_reddit(reddit_config)
 
     def step(self):
         """Posts all eligible posts and marks them as posted in the datbase."""
@@ -486,7 +505,9 @@ class Poster:
                     for sube in e.items:
                         report.append(f"-> {sube.error_type}: {sube.message or ''}")
                     log.error("\n".join([msg] + report))
-                    command = DbCommand("mark_error", ObjMarkError(entry.id, "\n".join(report)))
+                    command = DbCommand(
+                        "mark_error", ObjMarkError(entry.id, "\n".join(report))
+                    )
                     self.db.queue_command(command)
 
         # Tell database which posts we posted
@@ -579,7 +600,7 @@ if __name__ == "__main__":
     # Start RPC server
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     reddit_grpc.add_RedditSchedulerServicer_to_server(
-        Servicer().link_database(db), server
+        Servicer().link_database(db).set_reddit_config(config["RedditAPI"]), server
     )
     addr = f"[::]:{general.getint('Port')}"
     server.add_insecure_port(addr)

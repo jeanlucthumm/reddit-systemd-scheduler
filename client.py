@@ -9,7 +9,7 @@ import yaml
 import questionary
 from dateutil import parser
 from tabulate import tabulate
-from typing import List, Literal, TypeAlias
+from typing import Dict, List, Literal, TypeAlias
 from colored import fg, attr
 
 import reddit_pb2 as rpc
@@ -82,7 +82,7 @@ def validate_poll_duration(duration: str) -> str | Literal[True]:
     return True
 
 
-def make_post_from_cli() -> rpc.Post | None:
+def make_post_from_cli(stub: reddit_grpc.RedditSchedulerStub) -> rpc.Post | None:
     subreddit = questionary.text("Subreddit:").ask()
     if subreddit is None:
         return
@@ -137,11 +137,22 @@ def make_post_from_cli() -> rpc.Post | None:
     if time is None:
         return
     time = parser.parse(time)
+
+    flair_id = ""
+    if questionary.confirm("Add flair to post?", default=False).ask():
+        reply = stub.ListFlairs(rpc.ListFlairsRequest(subreddit=subreddit))
+        flair_map: Dict[str, str] = {}
+        for f in reply.flairs:
+            flair_map[f.text] = f.id
+        selected = questionary.select("Select flair:", choices=list(flair_map.keys())).ask()
+        flair_id = flair_map[selected]
+
     post = rpc.Post(
         title=title,
         subreddit=subreddit,
         scheduled_time=int(time.timestamp()),
         data=data,
+        flair_id=flair_id
     )
     return post
 
@@ -313,12 +324,12 @@ def post(config, file):
     information will be sourced from there. Use `reddit file` to generate
     boilerplate post yaml files which can be filled in.
     """
-    rpc_post = make_post_from_cli() if file is None else make_post_from_file(file)
-    if rpc_post is None:
-        return
     try:
         with grpc.insecure_channel(f"[::]:{config.port}") as channel:
             stub = reddit_grpc.RedditSchedulerStub(channel)
+            rpc_post = make_post_from_cli(stub) if file is None else make_post_from_file(file)
+            if rpc_post is None:
+                return
             reply = stub.SchedulePost(rpc_post)
             if reply.error_msg:
                 print(
