@@ -9,7 +9,7 @@ import yaml
 import questionary
 from dateutil import parser
 from tabulate import tabulate
-from typing import Dict, List, Literal, TypeAlias
+from typing import Dict, List, Literal, Optional, TypeAlias
 from colored import fg, attr
 
 import reddit_pb2 as rpc
@@ -144,7 +144,9 @@ def make_post_from_cli(stub: reddit_grpc.RedditSchedulerStub) -> rpc.Post | None
         flair_map: Dict[str, str] = {}
         for f in reply.flairs:
             flair_map[f.text] = f.id
-        selected = questionary.select("Select flair:", choices=list(flair_map.keys())).ask()
+        selected = questionary.select(
+            "Select flair:", choices=list(flair_map.keys())
+        ).ask()
         flair_id = flair_map[selected]
 
     post = rpc.Post(
@@ -152,7 +154,7 @@ def make_post_from_cli(stub: reddit_grpc.RedditSchedulerStub) -> rpc.Post | None
         subreddit=subreddit,
         scheduled_time=int(time.timestamp()),
         data=data,
-        flair_id=flair_id
+        flair_id=flair_id,
     )
     return post
 
@@ -188,7 +190,7 @@ def make_post_from_poll_yaml(file) -> rpc.PollPost | None:
     return post
 
 
-def make_post_from_file(path: str) -> rpc.Post | None:
+def make_post_from_file(stub: reddit_grpc.RedditSchedulerStub, path: str) -> rpc.Post | None:
     try:
         file = yaml.load(path, Loader=yaml.SafeLoader)
     except yaml.YAMLError as e:
@@ -216,6 +218,23 @@ def make_post_from_file(path: str) -> rpc.Post | None:
         if input(PROMPT) != "y":
             return None
 
+    subreddit = file["subreddit"]
+    flair_id = ""
+    if "flair" in file:
+        resp: rpc.ListFlairsResponse = stub.ListFlairs(
+            rpc.ListFlairsRequest(subreddit=subreddit)
+        )
+        text = file["flair"]
+        flair: Optional[rpc.Flair] = None
+        for f in resp.flairs:
+            if f.text == text:
+                flair = f
+                break
+        if flair is None:
+            print(f"r/{subreddit} doesn't have a flair called {flair}")
+            return None
+        flair_id = flair.id
+
     post_type = file["type"]
     data = rpc.Data()
     p = None
@@ -231,14 +250,15 @@ def make_post_from_file(path: str) -> rpc.Post | None:
         print("Unknown post type: ", post_type)
         print(ERR_SAMPLE_CONFIG)
         return None
-
     if p is None:
         return None
+
     return rpc.Post(
         title=file["title"],
         subreddit=file["subreddit"],
         scheduled_time=int(time.timestamp()),
         data=data,
+        flair_id=flair_id,
     )
 
 
@@ -327,7 +347,9 @@ def post(config, file):
     try:
         with grpc.insecure_channel(f"[::]:{config.port}") as channel:
             stub = reddit_grpc.RedditSchedulerStub(channel)
-            rpc_post = make_post_from_cli(stub) if file is None else make_post_from_file(file)
+            rpc_post = (
+                make_post_from_cli(stub) if file is None else make_post_from_file(stub, file)
+            )
             if rpc_post is None:
                 return
             reply = stub.SchedulePost(rpc_post)
@@ -337,8 +359,9 @@ def post(config, file):
                 )
             else:
                 print("Scheduled.")
-    except grpc.RpcError:
+    except grpc.RpcError as e:
         print(ERR_MISSING_SERVICE)
+        print(e)
 
 
 @click.command()
@@ -367,13 +390,13 @@ def file(type):
         print(ERR_MISSING_SAMPLE_POST_FILES)
 
 
-@click.command()
+@click.command(name="list")
 @click.option(
     "-f", "--filter", type=click.Choice(["all", "unposted", "posted"]), default="all"
 )
 @click.option("-p", "--post_id", type=int)
 @click.pass_obj
-def list(config, filter, post_id):
+def list_posts(config, filter, post_id):
     """List information about post(s).
     If -p option is given, lists detailed information about the post with that
     ID. Otherwise, lists all posts filtered with the -f option.
@@ -448,6 +471,6 @@ def main(ctx, config, port):
 if __name__ == "__main__":
     main.add_command(post)
     main.add_command(file)
-    main.add_command(list)
+    main.add_command(list_posts)
     main.add_command(delete)
     main()

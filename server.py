@@ -26,7 +26,7 @@ import sys
 import threading
 import time
 import time
-from typing import Any, Callable, Dict, Optional, List, cast
+from typing import Any, Callable, Optional, List, cast
 
 import grpc
 import praw
@@ -185,7 +185,7 @@ class Database:
         self.queue = Queue(100)
         # We initialize the connection in start() so that all SQL components are
         # running in the same thread
-        self.conn = None  # type: Optional[sqlite3.Connection]
+        self.conn: Optional[sqlite3.Connection] = None
 
     def adopt_connection_for_testing(self, conn: sqlite3.Connection):
         self.conn = conn
@@ -448,7 +448,7 @@ def flairs_for_subdreddit(reddit: praw.Reddit, subreddit: str) -> List[rpc.Flair
     flairs = [
         f for f in sub.flair.link_templates.user_selectable() if f["flair_text"] != ""
     ]
-    return [rpc.Flair(text=f["flair_text"], id=f["id"]) for f in flairs]
+    return [rpc.Flair(text=f["flair_text"], id=f["flair_template_id"]) for f in flairs]
 
 
 def simulate_post(post):
@@ -585,7 +585,10 @@ if __name__ == "__main__":
         set_debug_level(logging.DEBUG)
 
     # Start database
-    db = Database(os.environ["DB_PATH"])
+    db = Database(
+        os.environ.get("DB_PATH")
+        or os.path.expandvars("$HOME/.config/reddit-scheduler/database.sqlite")
+    )
     threading.Thread(target=database_thread, args=(db,)).start()
 
     # Start poster

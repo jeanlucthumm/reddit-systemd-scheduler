@@ -16,9 +16,14 @@ class MockGoodServicer(reddit_pb2_grpc.RedditSchedulerServicer):
         del request
         return proto.ListPostsReply()
 
-    def ListFlairs(self, request, _):
-        del request
-        return proto.ListFlairsResponse()
+    def ListFlairs(self, request: proto.ListFlairsRequest, _):
+        flairs = []
+        if request.subreddit == "test":
+            flairs = [
+                proto.Flair(text="flair1", id="1"),
+                proto.Flair(text="flair2", id="2"),
+            ]
+        return proto.ListFlairsResponse(flairs=flairs)
 
     def SchedulePost(self, request, _):
         del request
@@ -56,15 +61,16 @@ class ClientTest(unittest.TestCase):
             self.assertEqual(ret.duration, 7)
             self.assertEqual(ret.options, ["Yes", "No"])
 
-    def test_connection(self):
+    def test_post_flair(self):
         runner = CliRunner()
         main.add_command(post)
 
         result = runner.invoke(
             main,
-            ["--port", str(PORT), "post", "-f", "examples/text-post.yaml"],
-            input="y\n",
+            ["--port", str(PORT), "post", "-f", "testdata/text-post.yaml"],
         )
+        if result.exit_code != 0:
+            print(result.stdout)
         assert result.exit_code == 0
 
 
