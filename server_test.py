@@ -27,6 +27,7 @@ POLL_POST = rpc.Post(
             options=["option 1", "option 2"],
         )
     ),
+    flair_id="ID_FOR_FLAIR",
 )
 
 
@@ -56,13 +57,14 @@ class ServerTest(unittest.TestCase):
         data = rpc.Data(text=rpc.TextPost(body="body"))
         self._conn.execute(
             QUERY_INSERT_POST,
-            ("text", "Title", "test", data.SerializeToString(), 1647785133, 0),
+            ("text", "Title", "test", data.SerializeToString(), 1647785133, 0, None),
         )
         rows = get_all_rows(self._conn)
         self.assertGreater(len(rows), 0)
         post = make_post_from_row(rows[0])
         self.assertEqual(post.title, "Title")
         self.assertEqual(post.data.text.body, "body")
+        self.assertEqual(post.flair_id, "")
 
     def test_db_add_text_post(self):
         db = Database("")
@@ -86,6 +88,7 @@ class ServerTest(unittest.TestCase):
         e = rows[0]
         self.assertEqual(e["type"], "poll")
         self.assertEqual(e["title"], "Poll post")
+        self.assertEqual(e["flair_id"], "ID_FOR_FLAIR")
         data = rpc.Data()
         data.ParseFromString(e["data"])
         self.assertEqual(data.poll.selftext, "selftext")

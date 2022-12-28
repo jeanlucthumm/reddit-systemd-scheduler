@@ -72,13 +72,14 @@ CREATE TABLE IF NOT EXISTS Queue (
     data BLOB NOT NULL,
     scheduled_time INTEGER NOT NULL,
     posted INTEGER NOT NULL,
+    flair_id TEXT,
     error TEXT
 );
 """
 
 QUERY_INSERT_POST = """
-INSERT INTO Queue (type, title, subreddit, data, scheduled_time, posted)
-VALUES (?, ?, ?, ?, ?, ?);
+INSERT INTO Queue (type, title, subreddit, data, scheduled_time, posted, flair_id)
+VALUES (?, ?, ?, ?, ?, ?, ?);
 """
 
 QUERY_ELIGIBLE = """
@@ -120,6 +121,7 @@ def make_post_from_row(row: sqlite3.Row) -> rpc.Post:
         title=row["title"],
         subreddit=row["subreddit"],
         scheduled_time=row["scheduled_time"],
+        flair_id=row["flair_id"] or "",
     )
     post.data.ParseFromString(row["data"])
     return post
@@ -300,6 +302,7 @@ class Database:
                 p.data.SerializeToString(),
                 p.scheduled_time,
                 0,
+                None if p.flair_id == "" else p.flair_id,
             ),
         )
         self.conn.commit()
@@ -428,8 +431,11 @@ def post_to_reddit(reddit: praw.Reddit, entry: rpc.PostDbEntry):
     log.info("Posting post with id %d to reddit", entry.id)
     p = entry.post
     subreddit = reddit.subreddit(p.subreddit)
+    flair_id = p.flair_id if p.flair_id != "" else None
     if p.data.HasField("text"):
-        subreddit.submit(title=p.title, selftext=p.data.text.body, url=None)
+        subreddit.submit(
+            title=p.title, selftext=p.data.text.body, url=None, flair_id=flair_id
+        )
         log.info("Submitted post with id %d", entry.id)
     elif p.data.HasField("poll"):
         poll = p.data.poll
@@ -437,7 +443,11 @@ def post_to_reddit(reddit: praw.Reddit, entry: rpc.PostDbEntry):
         if poll.duration != 0:
             kwargs["duration"] = poll.duration
         subreddit.submit_poll(
-            title=p.title, options=list(poll.options), selftext=poll.selftext, **kwargs
+            title=p.title,
+            options=list(poll.options),
+            selftext=poll.selftext,
+            flair_id=flair_id,
+            **kwargs,
         )
     else:
         raise ValueError(f"could not determine type of post to post to reddit: {p}")
