@@ -68,6 +68,7 @@ class ClientTest(unittest.TestCase):
         result = runner.invoke(
             main,
             ["--port", str(PORT), "post", "-f", "testdata/text-post.yaml"],
+            input="y\n"
         )
         if result.exit_code != 0:
             print(result.stdout)
