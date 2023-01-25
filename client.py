@@ -144,10 +144,13 @@ def make_post_from_cli(stub: reddit_grpc.RedditSchedulerStub) -> rpc.Post | None
         flair_map: Dict[str, str] = {}
         for f in reply.flairs:
             flair_map[f.text] = f.id
-        selected = questionary.select(
-            "Select flair:", choices=list(flair_map.keys())
-        ).ask()
-        flair_id = flair_map[selected]
+        if len(flair_map) == 0:
+          print(f"r/{subreddit} doesn't have any post flairs")
+        else:
+          selected = questionary.select(
+              "Select flair:", choices=list(flair_map.keys())
+          ).ask()
+          flair_id = flair_map[selected]
 
     post = rpc.Post(
         title=title,
