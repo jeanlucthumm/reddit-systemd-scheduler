@@ -1,0 +1,9 @@
+type: image
+title: Sample title
+subreddit: test
+image_path: sample-image.png
+nsfw: true
+# Uses US style dates MM/DD
+# Most formats work, just try it
+scheduled_time: '3/20 18:01'
+flair: example flair

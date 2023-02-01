@@ -1,0 +1,10 @@
+type: image
+title: Sample title
+subreddit: test
+# Absolute or relative to this file's directory
+image_path: /tmp/random.png
+nsfw: false
+# Uses US style dates MM/DD
+# Most formats work, just try it
+scheduled_time: '3/20 18:01'
+flair: example flair

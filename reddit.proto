@@ -48,6 +48,7 @@ message Data {
   oneof type {
     TextPost text = 1;
     PollPost poll = 2;
+    ImagePost image = 3;
   }
 }
 
@@ -59,6 +60,15 @@ message PollPost {
   string selftext = 1;
   int32 duration = 2;
   repeated string options = 3;
+}
+
+message ImagePost {
+  // Transmit binary data directly instead of file path to avoid permission
+  // errors when reading and also to keep interface generic.
+  bytes image_data = 1;
+  // e.g. "png" in "image.png"
+  string extension = 2;
+  bool nsfw = 3;
 }
 
 enum PostStatus {

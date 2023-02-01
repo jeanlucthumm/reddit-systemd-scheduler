@@ -61,6 +61,17 @@ class ClientTest(unittest.TestCase):
             self.assertEqual(ret.duration, 7)
             self.assertEqual(ret.options, ["Yes", "No"])
 
+    def test_make_post_from_image_yaml(self):
+        f = open("testdata/image-post.yaml", "r")
+        file = yaml.safe_load(f)
+        f.close()
+        ret = make_post_from_image_yaml(file, Path("testdata"))
+        self.assertIsNotNone(ret)
+        if ret is not None:
+            self.assertEqual(ret.extension, "png")
+            self.assertEqual(ret.nsfw, True)
+
+
     def test_post_flair(self):
         runner = CliRunner()
         main.add_command(post)

@@ -21,8 +21,10 @@ from praw.exceptions import RedditAPIException
 import os
 from queue import Queue
 import queue
+import uuid
 import sqlite3
 import sys
+from pathlib import Path
 import threading
 import time
 import time
@@ -288,6 +290,10 @@ class Database:
             data_type = "text"
         elif p.data.HasField("poll"):
             data_type = "poll"
+        elif p.data.HasField("image"):
+            data_type = "image"
+            if len(p.data.image.image_data) == 0:
+                return "cannot post empty image post"
         else:
             raise ValueError(f"could not determine type of post to add: {p}")
 
@@ -448,6 +454,18 @@ def post_to_reddit(reddit: praw.Reddit, entry: rpc.PostDbEntry):
             selftext=poll.selftext,
             flair_id=flair_id,
             **kwargs,
+        )
+    elif p.data.HasField("image"):
+        image = p.data.image
+        path = (Path("/tmp/reddit-scheduler") / str(uuid.uuid1())).with_suffix(
+            "." + image.extension
+        )
+        log.debug("Writing temporary image to %s", path)
+        os.makedirs(path.parent, exist_ok=True)
+        with open(path, "wb") as f:
+            f.write(image.image_data)
+        subreddit.submit_image(
+            title=p.title, flair_id=flair_id, nsfw=image.nsfw, image_path=str(path)
         )
     else:
         raise ValueError(f"could not determine type of post to post to reddit: {p}")

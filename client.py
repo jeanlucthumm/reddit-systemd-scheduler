@@ -1,4 +1,5 @@
 import configparser
+from io import TextIOWrapper
 import os
 import shutil
 from datetime import datetime
@@ -9,6 +10,7 @@ import yaml
 import questionary
 from dateutil import parser
 from tabulate import tabulate
+from pathlib import Path
 from typing import Dict, List, Literal, Optional, TypeAlias
 from colored import fg, attr
 
@@ -82,6 +84,32 @@ def validate_poll_duration(duration: str) -> str | Literal[True]:
     return True
 
 
+def read_file_data(path: Path) -> bytes | None:
+    try:
+        with open(path, "rb") as f:
+            data = b"".join(f.readlines())
+            if len(data) == 0:
+                print("Empty file.")
+                return None
+            return data
+    except FileNotFoundError:
+        print("File doesn't exist.")
+        return None
+    except OSError as e:
+        print(f"OS Error when trying to open: {e.strerror}")
+        return None
+    except Exception as e:
+        print(f"Unknown error when reading:\n{e}")
+
+def make_absolute(root: Path, path: Path) -> Path:
+  """
+  Turns path into absolute relative to root, unless path is already absolute.
+  """
+  if path.is_absolute():
+    return path
+  return (root / path).absolute()
+
+
 def make_post_from_cli(stub: reddit_grpc.RedditSchedulerStub) -> rpc.Post | None:
     subreddit = questionary.text("Subreddit:").ask()
     if subreddit is None:
@@ -93,7 +121,9 @@ def make_post_from_cli(stub: reddit_grpc.RedditSchedulerStub) -> rpc.Post | None
         return
     title = title.strip()
 
-    type: PostType = questionary.select("Type of post:", choices=["text", "poll"]).ask()
+    type: PostType = questionary.select(
+        "Type of post:", choices=["text", "poll", "image"]
+    ).ask()
     if type is None:
         return
 
@@ -128,6 +158,16 @@ def make_post_from_cli(stub: reddit_grpc.RedditSchedulerStub) -> rpc.Post | None
         data = rpc.Data(
             poll=rpc.PollPost(selftext=selftext, duration=duration, options=options)
         )
+    elif type == "image":
+        img_path = Path(questionary.path("Path to image:").ask())
+        img_data = read_file_data(img_path)
+        if img_data is None:
+            return None
+        extension = img_path.suffix.lstrip(".")
+        nsfw: bool = questionary.confirm("NSFW?", default=False).ask()
+        data = rpc.Data(
+            image=rpc.ImagePost(image_data=img_data, nsfw=nsfw, extension=extension)
+        )
 
     time = questionary.text(
         "Post time:",
@@ -145,12 +185,12 @@ def make_post_from_cli(stub: reddit_grpc.RedditSchedulerStub) -> rpc.Post | None
         for f in reply.flairs:
             flair_map[f.text] = f.id
         if len(flair_map) == 0:
-          print(f"r/{subreddit} doesn't have any post flairs")
+            print(f"r/{subreddit} doesn't have any post flairs")
         else:
-          selected = questionary.select(
-              "Select flair:", choices=list(flair_map.keys())
-          ).ask()
-          flair_id = flair_map[selected]
+            selected = questionary.select(
+                "Select flair:", choices=list(flair_map.keys())
+            ).ask()
+            flair_id = flair_map[selected]
 
     post = rpc.Post(
         title=title,
@@ -193,22 +233,39 @@ def make_post_from_poll_yaml(file) -> rpc.PollPost | None:
     return post
 
 
-def make_post_from_file(stub: reddit_grpc.RedditSchedulerStub, path: str) -> rpc.Post | None:
+def make_post_from_image_yaml(file, root: Path) -> rpc.ImagePost | None:
+    if not verify_yaml_keys(file, ["image_path"]):
+        return None
+    path = make_absolute(root, Path(file["image_path"]))
+    data = read_file_data(path)
+    if data is None:
+        return None
+    ext = path.suffix.lstrip(".")
+    nsfw = False
+    if "nsfw" in file:
+        nsfw = file["nsfw"]
+    post = rpc.ImagePost(image_data=data, extension=ext, nsfw=nsfw)
+    return post
+
+
+def make_post_from_file(
+    stub: reddit_grpc.RedditSchedulerStub, path: TextIOWrapper
+) -> rpc.Post | None:
     try:
-        file = yaml.load(path, Loader=yaml.SafeLoader)
+        parsed = yaml.load(path, Loader=yaml.SafeLoader)
     except yaml.YAMLError as e:
         print(ERR_INVALID_POST_FILE, e)
         return None
-    if not verify_yaml_keys(file, ["title", "subreddit", "type", "scheduled_time"]):
+    if not verify_yaml_keys(parsed, ["title", "subreddit", "type", "scheduled_time"]):
         return
     try:
-        time = parser.parse(file["scheduled_time"], dayfirst=True)
+        time = parser.parse(parsed["scheduled_time"], dayfirst=True)
     except ValueError:
-        print("Invalid scheduled time in YAML file:", file["scheduled_time"])
+        print("Invalid scheduled time in YAML file:", parsed["scheduled_time"])
         return None
     except TypeError:
         print(
-            "Schedule time should be of type string, got:", type(file["scheduled_time"])
+            "Schedule time should be of type string, got:", type(parsed["scheduled_time"])
         )
         return None
 
@@ -221,13 +278,13 @@ def make_post_from_file(stub: reddit_grpc.RedditSchedulerStub, path: str) -> rpc
         if input(PROMPT) != "y":
             return None
 
-    subreddit = file["subreddit"]
+    subreddit = parsed["subreddit"]
     flair_id = ""
-    if "flair" in file:
+    if "flair" in parsed:
         resp: rpc.ListFlairsResponse = stub.ListFlairs(
             rpc.ListFlairsRequest(subreddit=subreddit)
         )
-        text = file["flair"]
+        text = parsed["flair"]
         flair: Optional[rpc.Flair] = None
         for f in resp.flairs:
             if f.text == text:
@@ -238,17 +295,24 @@ def make_post_from_file(stub: reddit_grpc.RedditSchedulerStub, path: str) -> rpc
             return None
         flair_id = flair.id
 
-    post_type = file["type"]
+    post_type = parsed["type"]
     data = rpc.Data()
     p = None
     if post_type == "poll":
-        p = make_post_from_poll_yaml(file)
-        if p is not None:
-            data.poll.CopyFrom(p)
+        p = make_post_from_poll_yaml(parsed)
+        if p is None:
+            return None
+        data.poll.CopyFrom(p)
     elif post_type == "text":
-        p = make_post_from_text_yaml(file)
-        if p is not None:
-            data.text.CopyFrom(p)
+        p = make_post_from_text_yaml(parsed)
+        if p is None:
+            return None
+        data.text.CopyFrom(p)
+    elif post_type == "image":
+        p = make_post_from_image_yaml(parsed, Path(file.name).parent)
+        if p is None:
+            return None
+        data.image.CopyFrom(p)
     else:
         print("Unknown post type: ", post_type)
         print(ERR_SAMPLE_CONFIG)
@@ -257,8 +321,8 @@ def make_post_from_file(stub: reddit_grpc.RedditSchedulerStub, path: str) -> rpc
         return None
 
     return rpc.Post(
-        title=file["title"],
-        subreddit=file["subreddit"],
+        title=parsed["title"],
+        subreddit=parsed["subreddit"],
         scheduled_time=int(time.timestamp()),
         data=data,
         flair_id=flair_id,
@@ -368,7 +432,7 @@ def post(config, file):
 
 
 @click.command()
-@click.option("-t", "--type", required=True, type=click.Choice(["text", "poll"]))
+@click.option("-t", "--type", required=True, type=click.Choice(["text", "poll", "image"]))
 def file(type):
     """Create a sample post file of the given type.
 
@@ -387,6 +451,12 @@ def file(type):
                 "poll-post.yaml",
             )
             print("./poll-post.yaml created.")
+        elif type == "image":
+            shutil.copyfile(
+                "/usr/share/doc/reddit-scheduler/examples/image-post.yaml",
+                "image-post.yaml",
+            )
+            print("./image-post.yaml created.")
         else:
             assert False
     except FileNotFoundError:
