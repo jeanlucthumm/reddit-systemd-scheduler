@@ -6,6 +6,7 @@ body: |
     Or you can use '>' instead of '|' if you don't want to preserve line breaks
     Or you can leave this empty for no body
 # Uses US style dates MM/DD
-# Most formats work, just try it
+# Most formats work, just try it, date optional
 scheduled_time: '3/20 18:01'
+# Optional
 flair: example flair

@@ -3,8 +3,10 @@ title: Sample title
 subreddit: test
 # Absolute or relative to this file's directory
 image_path: /tmp/random.png
+# Optional
 nsfw: false
 # Uses US style dates MM/DD
-# Most formats work, just try it
+# Most formats work, just try it, date optional
 scheduled_time: '3/20 18:01'
+# Optional
 flair: example flair
