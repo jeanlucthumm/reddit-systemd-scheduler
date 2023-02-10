@@ -71,6 +71,14 @@ class ClientTest(unittest.TestCase):
             self.assertEqual(ret.extension, "png")
             self.assertEqual(ret.nsfw, True)
 
+    def test_make_post_from_url_yaml(self):
+        f = open("testdata/url-post.yaml", "r")
+        file = yaml.safe_load(f)
+        f.close()
+        ret = make_post_from_url_yaml(file)
+        self.assertIsNotNone(ret)
+        if ret is not None:
+            self.assertEqual(ret.url, "google.com")
 
     def test_post_flair(self):
         runner = CliRunner()
@@ -79,7 +87,7 @@ class ClientTest(unittest.TestCase):
         result = runner.invoke(
             main,
             ["--port", str(PORT), "post", "-f", "testdata/text-post.yaml"],
-            input="y\n"
+            input="y\n",
         )
         if result.exit_code != 0:
             print(result.stdout)

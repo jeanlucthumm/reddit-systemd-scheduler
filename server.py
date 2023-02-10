@@ -61,7 +61,9 @@ CONFIG_SEARCH_PATHS = [p for p in CONFIG_SEARCH_PATHS if p is not None]
 
 ERR_MISSING_CONFIG = "Could not find a config file. Search path is: "
 ERR_MISSING_CONFIG += ", ".join(CONFIG_SEARCH_PATHS)
-ERR_INTERNAL = "internal error. See service logs"
+ERR_INTERNAL = (
+    "internal error. See service logs via `systemctl --user status reddit-scheduler`"
+)
 
 # TODO how do you deal with schema updates? ==> separate table with version
 # Existing table cols will not be updated due to IF NOT EXISTS
@@ -294,6 +296,8 @@ class Database:
             data_type = "image"
             if len(p.data.image.image_data) == 0:
                 return "cannot post empty image post"
+        elif p.data.HasField("url"):
+            data_type = "url"
         else:
             raise ValueError(f"could not determine type of post to add: {p}")
 
@@ -439,9 +443,7 @@ def post_to_reddit(reddit: praw.Reddit, entry: rpc.PostDbEntry):
     subreddit = reddit.subreddit(p.subreddit)
     flair_id = p.flair_id if p.flair_id != "" else None
     if p.data.HasField("text"):
-        subreddit.submit(
-            title=p.title, selftext=p.data.text.body, url=None, flair_id=flair_id
-        )
+        subreddit.submit(title=p.title, selftext=p.data.text.body, flair_id=flair_id)
         log.info("Submitted post with id %d", entry.id)
     elif p.data.HasField("poll"):
         poll = p.data.poll
@@ -467,6 +469,9 @@ def post_to_reddit(reddit: praw.Reddit, entry: rpc.PostDbEntry):
         subreddit.submit_image(
             title=p.title, flair_id=flair_id, nsfw=image.nsfw, image_path=str(path)
         )
+    elif p.data.HasField("url"):
+        subreddit.submit(title=p.title, url=p.data.url.url, flair_id=flair_id)
+        log.info("Submitted post with id %d", entry.id)
     else:
         raise ValueError(f"could not determine type of post to post to reddit: {p}")
 

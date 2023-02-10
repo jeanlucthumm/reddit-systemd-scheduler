@@ -30,6 +30,17 @@ POLL_POST = rpc.Post(
     flair_id="ID_FOR_FLAIR",
 )
 
+URL_POST = rpc.Post(
+    title="Poll post",
+    subreddit="testing",
+    scheduled_time=1000,
+    data=rpc.Data(
+        url=rpc.UrlPost(
+            url="google.com",
+        )
+    ),
+)
+
 
 def get_all_rows(conn: sqlite3.Connection) -> List[sqlite3.Row]:
     rows = []
@@ -92,6 +103,18 @@ class ServerTest(unittest.TestCase):
         data = rpc.Data()
         data.ParseFromString(e["data"])
         self.assertEqual(data.poll.selftext, "selftext")
+
+    def test_db_add_url_post(self):
+        db = Database("")
+        db.adopt_connection_for_testing(self._conn)
+        db.add_post(URL_POST)
+        rows = get_all_rows(self._conn)
+        self.assertGreater(len(rows), 0)
+        e = rows[0]
+        self.assertEqual(e["type"], "url")
+        data = rpc.Data()
+        data.ParseFromString(e["data"])
+        self.assertEqual(data.url.url, "google.com")
 
     def test_db_mark_error(self):
         db = Database("")

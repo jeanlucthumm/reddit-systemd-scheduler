@@ -1,0 +1,9 @@
+type: url
+title: Sample title
+subreddit: test
+url: https://www.google.com
+# Uses US style dates MM/DD
+# Most formats work, just try it, date optional
+scheduled_time: '3/20 18:01'
+# Optional
+flair: example flair

@@ -57,7 +57,7 @@ ERR_SAMPLE_CONFIG = (
     "Run `reddit file` to output a sample YAML post file in the current directory"
 )
 
-PostType: TypeAlias = Literal["text", "poll"]
+PostType: TypeAlias = Literal["text", "poll", "image", "url"]
 
 
 class Config:
@@ -101,13 +101,14 @@ def read_file_data(path: Path) -> bytes | None:
     except Exception as e:
         print(f"Unknown error when reading:\n{e}")
 
+
 def make_absolute(root: Path, path: Path) -> Path:
-  """
-  Turns path into absolute relative to root, unless path is already absolute.
-  """
-  if path.is_absolute():
-    return path
-  return (root / path).absolute()
+    """
+    Turns path into absolute relative to root, unless path is already absolute.
+    """
+    if path.is_absolute():
+        return path
+    return (root / path).absolute()
 
 
 def make_post_from_cli(stub: reddit_grpc.RedditSchedulerStub) -> rpc.Post | None:
@@ -122,7 +123,7 @@ def make_post_from_cli(stub: reddit_grpc.RedditSchedulerStub) -> rpc.Post | None
     title = title.strip()
 
     type: PostType = questionary.select(
-        "Type of post:", choices=["text", "poll", "image"]
+        "Type of post:", choices=["text", "poll", "image", "url"]
     ).ask()
     if type is None:
         return
@@ -168,6 +169,12 @@ def make_post_from_cli(stub: reddit_grpc.RedditSchedulerStub) -> rpc.Post | None
         data = rpc.Data(
             image=rpc.ImagePost(image_data=img_data, nsfw=nsfw, extension=extension)
         )
+    elif type == "url":
+        url = questionary.text("URL:").ask()
+        if url is None or url == "":
+            print("\nURL can't be empty.\n")
+            return None
+        data = rpc.Data(url=rpc.UrlPost(url=url))
 
     time = questionary.text(
         "Post time:",
@@ -244,8 +251,13 @@ def make_post_from_image_yaml(file, root: Path) -> rpc.ImagePost | None:
     nsfw = False
     if "nsfw" in file:
         nsfw = file["nsfw"]
-    post = rpc.ImagePost(image_data=data, extension=ext, nsfw=nsfw)
-    return post
+    return rpc.ImagePost(image_data=data, extension=ext, nsfw=nsfw)
+
+
+def make_post_from_url_yaml(file) -> rpc.ImagePost | None:
+    if not verify_yaml_keys(file, ["url"]):
+        return None
+    return rpc.UrlPost(url=file["url"])
 
 
 def make_post_from_file(
@@ -265,7 +277,8 @@ def make_post_from_file(
         return None
     except TypeError:
         print(
-            "Schedule time should be of type string, got:", type(parsed["scheduled_time"])
+            "Schedule time should be of type string, got:",
+            type(parsed["scheduled_time"]),
         )
         return None
 
@@ -313,6 +326,11 @@ def make_post_from_file(
         if p is None:
             return None
         data.image.CopyFrom(p)
+    elif post_type == "url":
+        p = make_post_from_url_yaml(parsed)
+        if p is None:
+            return None
+        data.url.CopyFrom(p)
     else:
         print("Unknown post type: ", post_type)
         print(ERR_SAMPLE_CONFIG)
@@ -415,7 +433,9 @@ def post(config, file):
         with grpc.insecure_channel(f"[::]:{config.port}") as channel:
             stub = reddit_grpc.RedditSchedulerStub(channel)
             rpc_post = (
-                make_post_from_cli(stub) if file is None else make_post_from_file(stub, file)
+                make_post_from_cli(stub)
+                if file is None
+                else make_post_from_file(stub, file)
             )
             if rpc_post is None:
                 return
@@ -432,7 +452,9 @@ def post(config, file):
 
 
 @click.command()
-@click.option("-t", "--type", required=True, type=click.Choice(["text", "poll", "image"]))
+@click.option(
+    "-t", "--type", required=True, type=click.Choice(["text", "poll", "image", "url"])
+)
 def file(type):
     """Create a sample post file of the given type.
 
@@ -457,6 +479,12 @@ def file(type):
                 "image-post.yaml",
             )
             print("./image-post.yaml created.")
+        elif type == "url":
+            shutil.copyfile(
+                "/usr/share/doc/reddit-scheduler/examples/url-post.yaml",
+                "url-post.yaml",
+            )
+            print("./url-post.yaml created.")
         else:
             assert False
     except FileNotFoundError:

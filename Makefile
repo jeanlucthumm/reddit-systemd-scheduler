@@ -37,6 +37,7 @@ install: default
 	install -Dm644 examples/text-post.yaml $(DESTDIR)/usr/share/doc/reddit-scheduler/examples/text-post.yaml
 	install -Dm644 examples/poll-post.yaml $(DESTDIR)/usr/share/doc/reddit-scheduler/examples/poll-post.yaml
 	install -Dm644 examples/image-post.yaml $(DESTDIR)/usr/share/doc/reddit-scheduler/examples/image-post.yaml
+	install -Dm644 examples/url-post.yaml $(DESTDIR)/usr/share/doc/reddit-scheduler/examples/url-post.yaml
 	install -Dm644 reddit-scheduler.service $(DESTDIR)/usr/lib/systemd/user/reddit-scheduler.service
 	install -Dm755 client $(DESTDIR)/usr/bin/reddit
 	cp -r venv $(DESTDIR)$(default_dir)/

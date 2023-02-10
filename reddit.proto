@@ -49,6 +49,7 @@ message Data {
     TextPost text = 1;
     PollPost poll = 2;
     ImagePost image = 3;
+    UrlPost url = 4;
   }
 }
 
@@ -69,6 +70,10 @@ message ImagePost {
   // e.g. "png" in "image.png"
   string extension = 2;
   bool nsfw = 3;
+}
+
+message UrlPost {
+  string url = 1;
 }
 
 enum PostStatus {
