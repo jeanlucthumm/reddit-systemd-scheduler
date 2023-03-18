@@ -402,9 +402,13 @@ def print_post_info(all_posts: List[rpc.PostDbEntry], post_id: int):
             datetime.fromtimestamp(post.scheduled_time).strftime(TIME_FMT),
         ],
     ]
+    details = []
+    post_type = ""
     if post.data.HasField("text"):
-        rows.append(["Body", post.data.text.body])
-    if post.data.HasField("poll"):
+        post_type = "Text"
+        details.append(["Body", post.data.text.body])
+    elif post.data.HasField("poll"):
+        post_type = "Poll"
         poll = post.data.poll
         rows += [
             ["Selftext", poll.selftext],
@@ -413,7 +417,16 @@ def print_post_info(all_posts: List[rpc.PostDbEntry], post_id: int):
         opt_text = ""
         for opt in poll.options:
             opt_text += f"-- {opt}\n"
-        rows.append(["Options", opt_text])
+        details.append(["Options", opt_text])
+    elif post.data.HasField("image"):
+        post_type = "Image"
+        details.append(["NSFW", post.data.image.nsfw])
+    elif post.data.HasField("url"):
+        post_type = "URL"
+        details.append(["URL", post.data.url.url])
+    rows.append(["Type", post_type])
+    rows.extend(details)
+
     print(tabulate(rows))
     if entry.status == rpc.PostStatus.ERROR:
         print(f"{fg('red')}Posting failed with error:\n{entry.error}{attr('reset')}")
