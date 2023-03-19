@@ -64,57 +64,27 @@ class ServerTest(unittest.TestCase):
         self._conn.execute("DELETE FROM Queue")
 
     def test_make_post_from_row(self):
-        # Text post
-        data = rpc.Data(text=rpc.TextPost(body="body"))
+        p = TEXT_POST
         self._conn.execute(
-            QUERY_INSERT_POST,
-            ("text", "Title", "test", data.SerializeToString(), 1647785133, 0, None),
+            QUERY_INSERT_POST, (p.SerializeToString(), p.scheduled_time, 0)
         )
         rows = get_all_rows(self._conn)
         self.assertGreater(len(rows), 0)
         post = make_post_from_row(rows[0])
-        self.assertEqual(post.title, "Title")
-        self.assertEqual(post.data.text.body, "body")
-        self.assertEqual(post.flair_id, "")
+        self.assertEqual(post.title, p.title)
+        self.assertEqual(post.data.text.body, p.data.text.body)
+        self.assertEqual(post.flair_id, p.flair_id)
 
-    def test_db_add_text_post(self):
+    def test_db_add_post(self):
         db = Database("")
         db.adopt_connection_for_testing(self._conn)
         db.add_post(TEXT_POST)
         rows = get_all_rows(self._conn)
         self.assertGreater(len(rows), 0)
         e = rows[0]
-        self.assertEqual(e["type"], "text")
-        self.assertEqual(e["title"], "Hello there")
-        data = rpc.Data()
-        data.ParseFromString(e["data"])
-        self.assertEqual(data.text.body, "sample body")
-
-    def test_db_add_poll_post(self):
-        db = Database("")
-        db.adopt_connection_for_testing(self._conn)
-        db.add_post(POLL_POST)
-        rows = get_all_rows(self._conn)
-        self.assertGreater(len(rows), 0)
-        e = rows[0]
-        self.assertEqual(e["type"], "poll")
-        self.assertEqual(e["title"], "Poll post")
-        self.assertEqual(e["flair_id"], "ID_FOR_FLAIR")
-        data = rpc.Data()
-        data.ParseFromString(e["data"])
-        self.assertEqual(data.poll.selftext, "selftext")
-
-    def test_db_add_url_post(self):
-        db = Database("")
-        db.adopt_connection_for_testing(self._conn)
-        db.add_post(URL_POST)
-        rows = get_all_rows(self._conn)
-        self.assertGreater(len(rows), 0)
-        e = rows[0]
-        self.assertEqual(e["type"], "url")
-        data = rpc.Data()
-        data.ParseFromString(e["data"])
-        self.assertEqual(data.url.url, "google.com")
+        self.assertEqual(e["scheduled_time"], TEXT_POST.scheduled_time)
+        self.assertEqual(e["error"], None)
+        self.assertEqual(e["posted"], 0)
 
     def test_db_mark_error(self):
         db = Database("")

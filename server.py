@@ -70,20 +70,16 @@ ERR_INTERNAL = (
 QUERY_CREATE_TABLE = """
 CREATE TABLE IF NOT EXISTS Queue (
     id INTEGER PRIMARY KEY,
-    type TEXT NOT NULL,
-    title TEXT NOT NULL,
-    subreddit TEXT NOT NULL,
-    data BLOB NOT NULL,
+    post BLOB NOT NULL,
     scheduled_time INTEGER NOT NULL,
     posted INTEGER NOT NULL,
-    flair_id TEXT,
     error TEXT
 );
 """
 
 QUERY_INSERT_POST = """
-INSERT INTO Queue (type, title, subreddit, data, scheduled_time, posted, flair_id)
-VALUES (?, ?, ?, ?, ?, ?, ?);
+INSERT INTO Queue (post, scheduled_time, posted)
+VALUES (?, ?, ?);
 """
 
 QUERY_ELIGIBLE = """
@@ -121,13 +117,8 @@ def validate_post(post: rpc.Post):
 
 
 def make_post_from_row(row: sqlite3.Row) -> rpc.Post:
-    post = rpc.Post(
-        title=row["title"],
-        subreddit=row["subreddit"],
-        scheduled_time=row["scheduled_time"],
-        flair_id=row["flair_id"] or "",
-    )
-    post.data.ParseFromString(row["data"])
+    post = rpc.Post()
+    post.ParseFromString(row["post"])
     return post
 
 
@@ -287,32 +278,14 @@ class Database:
         if self.conn == None:
             assert False
 
-        data_type = ""
-        if p.data.HasField("text"):
-            data_type = "text"
-        elif p.data.HasField("poll"):
-            data_type = "poll"
-        elif p.data.HasField("image"):
-            data_type = "image"
-            if len(p.data.image.image_data) == 0:
-                return "cannot post empty image post"
-        elif p.data.HasField("url"):
-            data_type = "url"
-        else:
-            raise ValueError(f"could not determine type of post to add: {p}")
-
         if not validate_post(p):
             return "invalid post, client should not have sent this"
         self.conn.execute(
             QUERY_INSERT_POST,
             (
-                data_type,
-                p.title,
-                p.subreddit,
-                p.data.SerializeToString(),
+                p.SerializeToString(),
                 p.scheduled_time,
                 0,
-                None if p.flair_id == "" else p.flair_id,
             ),
         )
         self.conn.commit()
