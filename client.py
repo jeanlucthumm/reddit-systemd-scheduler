@@ -429,6 +429,8 @@ def print_post_info(all_posts: List[rpc.PostDbEntry], post_id: int):
         details.append(["URL", post.data.url.url])
     rows.append(["Type", post_type])
     rows.extend(details)
+    if post.flair_text != "":
+        rows.append(["Flair", post.flair_text])
 
     print(tabulate(rows))
     if entry.status == rpc.PostStatus.ERROR:

@@ -42,6 +42,7 @@ message Post {
   string subreddit = 3;
   Data data = 4;
   string flair_id = 5;
+  string flair_text = 6;
 }
 
 message Data {
