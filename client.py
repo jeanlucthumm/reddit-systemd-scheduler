@@ -186,6 +186,7 @@ def make_post_from_cli(stub: reddit_grpc.RedditSchedulerStub) -> rpc.Post | None
     time = parser.parse(time)
 
     flair_id = ""
+    flair_text = ""
     if questionary.confirm("Add flair to post?", default=False).ask():
         reply = stub.ListFlairs(rpc.ListFlairsRequest(subreddit=subreddit))
         flair_map: Dict[str, str] = {}
@@ -194,10 +195,10 @@ def make_post_from_cli(stub: reddit_grpc.RedditSchedulerStub) -> rpc.Post | None
         if len(flair_map) == 0:
             print(f"r/{subreddit} doesn't have any post flairs")
         else:
-            selected = questionary.select(
+            flair_text = questionary.select(
                 "Select flair:", choices=list(flair_map.keys())
             ).ask()
-            flair_id = flair_map[selected]
+            flair_id = flair_map[flair_text]
 
     post = rpc.Post(
         title=title,
@@ -205,6 +206,7 @@ def make_post_from_cli(stub: reddit_grpc.RedditSchedulerStub) -> rpc.Post | None
         scheduled_time=int(time.timestamp()),
         data=data,
         flair_id=flair_id,
+        flair_text=flair_text,
     )
     return post
 
@@ -292,7 +294,8 @@ def make_post_from_file(
             return None
 
     subreddit = parsed["subreddit"]
-    flair_id = ""
+
+    flair: Optional[rpc.Flair] = None
     if "flair" in parsed:
         resp: rpc.ListFlairsResponse = stub.ListFlairs(
             rpc.ListFlairsRequest(subreddit=subreddit)
@@ -306,7 +309,6 @@ def make_post_from_file(
         if flair is None:
             print(f"r/{subreddit} doesn't have a flair called {flair}")
             return None
-        flair_id = flair.id
 
     post_type = parsed["type"]
     data = rpc.Data()
@@ -343,7 +345,8 @@ def make_post_from_file(
         subreddit=parsed["subreddit"],
         scheduled_time=int(time.timestamp()),
         data=data,
-        flair_id=flair_id,
+        flair_id=flair.id if flair else "",
+        flair_text=flair.text if flair else "",
     )
 
 
