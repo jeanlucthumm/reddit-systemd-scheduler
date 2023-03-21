@@ -565,6 +565,31 @@ def get_default_config_path():
     return None
 
 
+@click.command()
+@click.argument("subreddit", type=str)
+@click.pass_obj
+def flairs(config, subreddit: str):
+    """Get available post flairs for a subreddit.
+    This should only be needed with `reddit post -f`, not while posting
+    interactively since the prompts will query the subreddit automatically.
+    """
+    try:
+        subreddit = subreddit.lstrip("r/")
+        with grpc.insecure_channel(f"[::]:{config.port}") as channel:
+            stub = reddit_grpc.RedditSchedulerStub(channel)
+            reply: rpc.ListFlairsResponse = stub.ListFlairs(
+                rpc.ListFlairsRequest(subreddit=subreddit)
+            )
+            if len(reply.flairs) != 0:
+                print(f"Flairs for {subreddit}:")
+                for flair in reply.flairs:
+                    print(flair.text)
+            else:
+                print(f"Subreddit r/{subreddit} doesn't have any flairs")
+    except grpc.RpcError:
+        print(ERR_MISSING_SERVICE)
+
+
 @click.group()
 @click.option("--config", type=str, default=get_default_config_path)
 @click.option("--port", type=int, default=None)
@@ -592,4 +617,5 @@ if __name__ == "__main__":
     main.add_command(file)
     main.add_command(list_posts)
     main.add_command(delete)
+    main.add_command(flairs)
     main()
