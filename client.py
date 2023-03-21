@@ -38,6 +38,8 @@ ERR_MISSING_SERVICE = (
 ERR_MISSING_CONFIG = (
     "Could not find a config file to pull a port number from. "
     "Alternatively, you can specify it with the --port flag.\n\n"
+    "To get a sample config, run:\n"
+    "  `cp /usr/share/doc/reddit-scheduler/examples/config.ini $HOME/.config/reddit-scheduler/config.ini`\n\n"
     "Search path for the config file is as follows:\n"
 )
 for path in CONFIG_SEARCH_PATHS:
