@@ -256,17 +256,17 @@ def make_post_from_image_yaml(file, root: Path) -> rpc.ImagePost | None:
     return rpc.ImagePost(image_data=data, extension=ext, nsfw=nsfw)
 
 
-def make_post_from_url_yaml(file) -> rpc.ImagePost | None:
+def make_post_from_url_yaml(file) -> rpc.UrlPost | None:
     if not verify_yaml_keys(file, ["url"]):
         return None
     return rpc.UrlPost(url=file["url"])
 
 
 def make_post_from_file(
-    stub: reddit_grpc.RedditSchedulerStub, path: TextIOWrapper
+    stub: reddit_grpc.RedditSchedulerStub, file_stream: TextIOWrapper
 ) -> rpc.Post | None:
     try:
-        parsed = yaml.load(path, Loader=yaml.SafeLoader)
+        parsed = yaml.load(file_stream, Loader=yaml.SafeLoader)
     except yaml.YAMLError as e:
         print(ERR_INVALID_POST_FILE, e)
         return None
@@ -324,7 +324,7 @@ def make_post_from_file(
             return None
         data.text.CopyFrom(p)
     elif post_type == "image":
-        p = make_post_from_image_yaml(parsed, Path(file.name).parent)
+        p = make_post_from_image_yaml(parsed, Path(file_stream.name).parent)
         if p is None:
             return None
         data.image.CopyFrom(p)
