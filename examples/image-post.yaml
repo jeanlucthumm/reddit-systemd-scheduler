@@ -8,5 +8,5 @@ nsfw: false
 # Uses US style dates MM/DD
 # Most formats work, just try it, date optional
 scheduled_time: '3/20 18:01'
-# Optional
+# Optional, use `reddit flairs` to get values
 flair: example flair
