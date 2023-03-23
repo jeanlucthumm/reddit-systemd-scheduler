@@ -586,7 +586,7 @@ if __name__ == "__main__":
     general = config["General"]
 
     # Check for debugging
-    if "Debug" in general and general["Debug"] == True:
+    if "Debug" in general and general["Debug"] == "true":
         log.info("Debug logging enabled")
         set_debug_level(logging.DEBUG)
 
