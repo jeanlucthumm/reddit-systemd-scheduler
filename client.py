@@ -552,10 +552,10 @@ def delete(config, post_id):
             reply = stub.EditPost(
                 rpc.EditPostRequest(operation=rpc.EditPostRequest.DELETE, id=post_id)
             )
-            print("Deleted.")
             if reply.error_msg:
                 print("Failed to delete post. Server returned error:", reply.error_msg)
                 return
+            print("Deleted.")
     except grpc.RpcError:
         print(ERR_MISSING_SERVICE)
 

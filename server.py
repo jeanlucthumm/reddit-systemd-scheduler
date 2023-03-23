@@ -64,6 +64,7 @@ ERR_MISSING_CONFIG += ", ".join(CONFIG_SEARCH_PATHS)
 ERR_INTERNAL = (
     "internal error. See service logs via `systemctl --user status reddit-scheduler`"
 )
+ERR_UNKNOWN_ID = "No post with id %d exists."
 
 # TODO how do you deal with schema updates? ==> separate table with version
 # Existing table cols will not be updated due to IF NOT EXISTS
@@ -94,6 +95,11 @@ SELECT * FROM Queue;
 
 QUERY_DELETE = """
 DELETE FROM Queue
+WHERE id == ?;
+"""
+
+QUERY_EXISTS = """
+SELECT COUNT(*) FROM Queue
 WHERE id == ?;
 """
 
@@ -247,20 +253,22 @@ class Database:
                 entry.reply_err(ERR_INTERNAL)
         elif command == "edit":
             try:
-                entry.reply_ok(self.edit_post(entry.obj))
+                msg = self.edit_post(entry.obj)
+                entry.reply(msg, msg != "")
             except:
                 log.exception("Failed to edit post")
                 entry.reply_err(ERR_INTERNAL)
         elif command == "mark_posted":
             try:
-                entry.reply_ok(self.mark_posted(entry.obj))
+                msg = self.mark_posted(entry.obj)
+                entry.reply(msg, msg != "")
             except:
                 log.exception("Failed to mark post with id %d as posted", entry.obj)
                 entry.reply_err(ERR_INTERNAL)
         elif command == "mark_error":
             obj = cast(ObjMarkError, entry.obj)
             try:
-                entry.reply_ok(self.mark_error(obj.id, obj.err))
+                msg = self.mark_error(obj.id, obj.err)
             except:
                 log.exception(
                     "Failed to mark post with id %d as error %s",
@@ -273,6 +281,11 @@ class Database:
     def handle_commands(self):
         while self.step():
             pass
+
+    def id_exists(self, id: int) -> bool:
+        if self.conn == None:
+            assert False
+        return self.conn.execute(QUERY_EXISTS, (id,)).fetchone()[0] != 0
 
     def add_post(self, p: rpc.Post) -> str:
         if self.conn == None:
@@ -294,6 +307,8 @@ class Database:
     def edit_post(self, request: rpc.EditPostRequest):
         if self.conn == None:
             assert False
+        if not self.id_exists(request.id):
+            return ERR_UNKNOWN_ID % request.id
         if request.operation == rpc.EditPostRequest.Operation.DELETE:
             self.conn.execute(QUERY_DELETE, (request.id,))
             self.conn.commit()

@@ -101,6 +101,21 @@ class ServerTest(unittest.TestCase):
         e = get_all_rows(self._conn)[0]
         self.assertEqual(e["error"], err)
 
+    def test_db_delete_unknown(self):
+        db = Database("")
+        db.adopt_connection_for_testing(self._conn)
+
+        cmd = DbCommand(
+            "edit",
+            rpc.EditPostRequest(operation=rpc.EditPostRequest.DELETE, id=123),
+        )
+        db.queue_command(cmd)
+        db.step()
+
+        reply = cmd.wait_for_answer()
+        self.assertEqual(reply.obj, ERR_UNKNOWN_ID % 123)
+        self.assertTrue(reply.is_err)
+
 
 if __name__ == "__main__":
     unittest.main()
