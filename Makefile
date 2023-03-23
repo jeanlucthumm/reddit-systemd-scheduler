@@ -25,6 +25,9 @@ stop:
 status:
 	systemctl --user status reddit-scheduler
 
+follow:
+	journalctl --user -b -u reddit-scheduler -f
+
 reload:
 	systemctl --user daemon-reload
 
