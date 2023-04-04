@@ -12,7 +12,11 @@ While other reddit scheduling tools exist, they do not integrate with systemd, n
 
 ### AUR
 
-Coming soon...
+Package is available in the AUR under `reddit-systemd-scheduler`:
+
+```
+paru -S reddit-systemd-scheduler
+```
 
 ### Manual
 ```

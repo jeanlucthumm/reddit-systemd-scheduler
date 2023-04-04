@@ -1,26 +1,22 @@
 # Maintainer: Jean-Luc Thumm <jeanlucthumm@gmail.com>
-pkgname=reddit-systemd-scheduler-git
-pkgver=r61.9bfe4ba
+pkgname=reddit-systemd-scheduler
+pkgver=1.0.0
 pkgrel=1
 pkgdesc="systemd service for scheduling posts to reddit"
 url="https://github.com/jeanlucthumm/reddit-systemd-scheduler"
-arch=("any")
+arch=("x86_64")
 makedepends=("git" "python")
-license=("MIT")
-source=("${pkgname%-*}::git+git://github.com/jeanlucthumm/${pkgname%-*}.git")
-sha1sums=("SKIP")
-
-pkgver() {
-  cd "${pkgname%-*}"
-  printf "r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
-}
+license=("GPL3")
+source=("$pkgname-$pkgver::https://github.com/jeanlucthumm/$pkgname/archive/v$pkgver.tar.gz")
+# Skipped only in GitHub repo to avoid recursion
+sha512sums=("SKIP")
 
 build() {
-  cd "${pkgname%-*}"
+  cd "$pkgname-$pkgver"
   make
 }
 
 package() {
-  cd "${pkgname%-*}"
-  make DESTDIR="$pkgdir/" install
+  cd "$pkgname-$pkgver"
+  make DESTDIR="$pkgdir" install
 }
