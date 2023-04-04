@@ -1,6 +1,6 @@
 # Maintainer: Jean-Luc Thumm <jeanlucthumm@gmail.com>
 pkgname=reddit-systemd-scheduler
-pkgver=1.0.0
+pkgver=1.0.1
 pkgrel=1
 pkgdesc="systemd service for scheduling posts to reddit"
 url="https://github.com/jeanlucthumm/reddit-systemd-scheduler"
